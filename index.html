@@ -1110,8 +1110,11 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     B(16.15, 17.2, fl + 0.6, fl + 2.6, 20.35, 21.1, M.steel); B(16.25, 17.1, fl + 2.6, fl + 2.78, 20.45, 21.0, M.stone);
     C.push([xb, 19.0, 20.3, 25.05], [13.41, xb, zb, 25.05], [xf, xb, zh, zb], [13.41, xf, zf, zb], [16.1, xb, 20.3, 21.15]);
   }
-  // storage shelving
-  B(8.3, 9.7, y0, y0 + 6.6, 20.35, 27.0, M.cab); B(9.7, 12.95, y0, y0 + 6.6, 25.6, 27.0, M.cab);
+  // storage: L-shaped open shelving on the north wall (1'-1" deep) and east wall (1'-7" deep), per plan 02
+  { const zn = 21.41, xe = 11.38;
+    [0.35, 1.7, 3.05, 4.4, 5.75, 7.1].forEach(h => { B(8.27, 12.98, y0 + h - 0.08, y0 + h, 20.32, zn, M.cab); B(xe, 12.98, y0 + h - 0.08, y0 + h, zn, 27.03, M.cab); });
+    [[8.3, zn - 0.08], [10.0, zn - 0.08], [xe, zn - 0.08], [xe, 24.2], [xe, 26.95]].forEach(([x, z]) => B(x, x + 0.08, y0, y0 + 7.1, z, z + 0.08, M.cab));
+    C.push([8.25, 13.0, 20.3, zn], [xe, 13.0, zn, 27.05]); }
   // gym closet with sliding doors
   B(13.45, 16.2, y0, y0 + 7.0, 26.98, 27.06, M.trim); B(16.2, 19.0, y0, y0 + 7.0, 27.06, 27.14, M.trim);
   C.push([13.41, 19.0, 25.46, 27.14]);
@@ -1581,7 +1584,7 @@ const ROOMS = [
   R('second', 'Hall', 5.6, L2, 20.0, 0), R('second', 'Laundry', 10.9, L2, 23.4, Math.PI), R('second', 'Primary bath', 15.0, L2, 19.0, Math.PI / 2),
   R('second', 'Primary WC', 16.6, L2, 14.9, -Math.PI / 2), R('second', 'Walk-in closet', 15.6, L2, 26.0, -Math.PI / 2), R('second', 'Primary bedroom', 10.0, L2, 34.3, Math.PI / 2),
   R('basement', 'Entry vestibule', 4.2, BSMT, 35.8, 0), R('basement', 'Hall', 6.0, BSMT, 20.0, 0), R('basement', 'Family room', 13.9, BSMT, 12.8, 0),
-  R('basement', 'Bathroom', 12.0, BSMT, 18.3, -Math.PI / 2), R('basement', 'Sauna', 15.0, BSMT, 21.6, -2.25, -0.5), R('basement', 'Storage', 11.2, BSMT, 23.3, Math.PI / 2),
+  R('basement', 'Bathroom', 12.0, BSMT, 18.3, -Math.PI / 2), R('basement', 'Sauna', 15.0, BSMT, 21.6, -2.25, -0.5), R('basement', 'Storage', 9.9, BSMT, 24.6, -0.55),
   R('basement', 'Gym', 12.8, BSMT, 34.6, 0),
   R('cellar', 'Cellar', 10.5, CEL_LOW, 15.0, 0), R('cellar', 'Utility sink', 10.0, CEL, 30.6, Math.PI), R('cellar', 'Mech room', 4.6, CEL, 37.4, -Math.PI / 2),
   R('cellar', 'Storage room', 14.2, CEL, 37.0, -Math.PI / 2),
@@ -1850,7 +1853,7 @@ function buildTour() {
   walk([[14.6, B, 19.2, 'Sauna']]);
   dwell('Sauna', [[18.2, B + 3.2, 24.2, 1.6], [14.6, B + 3.2, 24.3, 1.1], [16.7, B + 4.5, 22.6, 0.9]]);
   walk([[11.0, B, 18.4, 'Bathroom'], [6.0, B, 18.4, 'Basement hall'], [6.0, B, 23.7, 'Storage']]);
-  dwell('Storage', [[10.5, B + 3.5, 24.0, 1.6], [9.0, B + 5.0, 22.5, 1.0]]);
+  dwell('Storage', [[12.2, B + 3.5, 24.8, 1.6], [10.0, B + 4.5, 20.9, 1.0]]);
   walk([[6.0, B, 34.0, 'Basement hall'], [9.8, B, 34.0, 'Gym'], [12.2, B, 34.6]]);
   dwell('Gym', [[16.4, B + 4.2, 32.2, 1.8], [13.5, BCEIL, 33.0, 0.8], [16.0, B + 2.2, 38.6, 1.4], [15.0, B + 5.5, 40.2, 1.0], [9.6, B, 37.5, 0.9], [9.45, B + 3.0, 29.8, 1.2]]);
   walk([[9.8, B, 34.0], [5.8, B, 34.0, 'Entry vestibule'], [4.4, B, 36.6]]);
