@@ -161,6 +161,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .tourside .eye { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
 @media (max-width: 560px) { .tourside .eye { display: none; } .tourside select { max-width: 150px; } }
 
+.roomsel { font: 500 13px var(--f-body); color: var(--ink); background: var(--chip); border: 1px solid var(--rule); border-radius: 3px; padding: 7px 8px; max-width: 190px; min-width: 0; }
+.roomsel:hover { border-color: var(--accent); }
+
 .loading { left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 14px; font-size: 13px; }
 
 @media (max-width: 760px) {
@@ -218,7 +221,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </div>
 </aside>
 
-<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>G</kbd> <span id="ghostState">walls solid</span></div>
+<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> wide angle &middot; <kbd>G</kbd> <span id="ghostState">walls solid</span></div>
 
 <div class="overlay card pad" id="pad" hidden>
   <button class="ic up" data-k="f" aria-label="Walk forward">&uarr;</button>
@@ -248,8 +251,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <button class="v tourbtn" id="tourBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Walkthrough</button>
   </div>
   <span class="sep" aria-hidden="true" id="walkSep"></span>
-  <div class="group" role="group" aria-label="Walk through" id="walkGroup">
-    <span class="label-xs">Walk</span>
+  <div class="group" role="group" aria-label="Go to a room" id="walkGroup">
+    <label class="label-xs" for="roomSel">Go to</label>
+    <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
+    <button class="v" id="wideBtn" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
     <button class="ic" id="layersBtn" aria-controls="layers">Layers</button>
   </div>
 </nav>
@@ -277,6 +282,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <span class="eye">Eye 5'-3½" · 5'-8" person</span>
       <label class="label-xs" for="tourStops" style="position:absolute;left:-9999px">Jump to room</label>
       <select id="tourStops" aria-label="Jump to room"></select>
+      <button class="v" id="tWide" aria-pressed="false" title="Wide-angle lens (V)">Wide</button>
       <button class="ic" id="tExit">Exit</button>
     </div>
   </div>
@@ -1565,7 +1571,8 @@ function fly(pos, quat, done) {
   if (reduceMotion) { camera.position.copy(pos); camera.quaternion.copy(quat); done(); return; }
   flight = { p0: camera.position.clone(), q0: camera.quaternion.clone(), p1: pos, q1: quat, t0: performance.now(), dur: 900, done };
 }
-const walkEye = () => LEVELS[walkLv].floor + EYE;
+let walkFloor = 0;   // floor under the walker (a room can sit off its level's main floor, e.g. the cellar's lowered slab)
+const walkEye = () => walkFloor + EYE;
 const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 function updatePressed() {
   document.querySelectorAll('button.v[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === activeView)));
@@ -1576,7 +1583,7 @@ function go(name) {
   if (!ov && !L.walks[name]) return;
   activeView = name; updatePressed();
   if (ov) {
-    lastOverview = name; mode = 'orbit'; controls.enabled = false;
+    lastOverview = name; mode = 'orbit'; controls.enabled = false; roomSel.value = '';
     setCeiling(false); useRoomLights(null);
     if (level === 'house') setCut(1000);
     else setCut(name === 'plan' ? L.y + 4.0 : (userCut != null ? (userCut >= 12.5 ? 1000 : L.y + userCut) : L.y + L.cut));
@@ -1584,7 +1591,7 @@ function go(name) {
     fly(pos, quatLook(pos, tgt), () => { controls.target.copy(tgt); controls.enabled = true; controls.update(); });
   } else {
     const w = L.walks[name];
-    mode = 'walk'; walkLv = level; controls.enabled = false;
+    mode = 'walk'; walkLv = level; walkFloor = L.floor; controls.enabled = false;
     setCeiling(true); setCut(1000);
     useRoomLights(walkLv);
     yaw = w.yaw; pitch = w.pitch;
@@ -1595,20 +1602,70 @@ function go(name) {
   document.getElementById('pad').hidden = !(mode === 'walk' && coarse);
   updateTagsVisibility();
 }
+// ---------- Go to a room: stand near its center at eye level, facing its main feature, then look around ----------
+// yaw: 0 faces the rear, PI the street, PI/2 the left party wall, -PI/2 the right one. Points sit just off furniture.
+const R = (lv, name, x, f, z, yaw, pitch) => ({ lv, name, x, f, z, yaw, pitch: pitch == null ? -0.05 : pitch });
+const ROOMS = [
+  R('house', 'Street', 3.45, GRADE_F, 60, 0, 0.14), R('house', 'Rear deck', 8.5, -0.3, -4.0, Math.PI, 0.02), R('house', 'Rear yard', 10, GRADE_R, -20, Math.PI, 0.16),
+  R('first', 'Vestibule', 4.1, 0, 38.6, 0), R('first', 'Stair hall', 5.0, 0, 32.4, 0), R('first', 'Dining', 14.2, 0, 31.1, Math.PI),
+  R('first', 'Kitchen', 13.07, 0, 24.6, 0), R('first', 'Living', 12.2, 0, 10.6, 0),
+  R('second', 'Office', 4.1, L2, 7.9, 0), R('second', 'Guest bedroom', 10.6, L2, 5.7, -Math.PI / 2), R('second', 'Guest bath', 10.4, L2, 14.3, 0),
+  R('second', 'Hall', 5.6, L2, 20.0, 0), R('second', 'Laundry', 10.9, L2, 23.4, Math.PI), R('second', 'Primary bath', 15.0, L2, 19.0, Math.PI / 2),
+  R('second', 'Primary WC', 16.6, L2, 14.9, -Math.PI / 2), R('second', 'Walk-in closet', 15.6, L2, 26.0, -Math.PI / 2), R('second', 'Primary bedroom', 10.0, L2, 34.3, Math.PI / 2),
+  R('basement', 'Entry vestibule', 4.2, BSMT, 35.8, 0), R('basement', 'Hall', 6.0, BSMT, 20.0, 0), R('basement', 'Family room', 13.9, BSMT, 12.8, 0),
+  R('basement', 'Bathroom', 12.0, BSMT, 18.3, -Math.PI / 2), R('basement', 'Sauna', 15.0, BSMT, 22.7, -Math.PI / 2), R('basement', 'Storage', 11.2, BSMT, 23.3, Math.PI / 2),
+  R('basement', 'Gym', 12.8, BSMT, 34.6, 0),
+  R('cellar', 'Cellar', 10.5, CEL_LOW, 15.0, 0), R('cellar', 'Utility sink', 10.0, CEL, 30.6, Math.PI), R('cellar', 'Mech room', 4.6, CEL, 37.4, -Math.PI / 2),
+  R('cellar', 'Storage room', 14.2, CEL, 37.0, -Math.PI / 2),
+];
+const roomSel = document.getElementById('roomSel');
+{
+  const groups = { house: 'Outside', first: 'First floor', second: 'Second floor', basement: 'Basement', cellar: 'Cellar' };
+  ['house', 'first', 'second', 'basement', 'cellar'].forEach(lv => {
+    const og = document.createElement('optgroup'); og.label = groups[lv];
+    ROOMS.forEach((r, i) => { if (r.lv === lv) { const o = document.createElement('option'); o.value = String(i); o.textContent = r.name; og.appendChild(o); } });
+    roomSel.appendChild(og);
+  });
+}
+const roomFor = (lv, name) => ROOMS.find(r => r.lv === lv && (r.name === name || (name === 'WC' && r.name === 'Primary WC')));
+function jumpTo(r) {
+  if (mode === 'tour') { tour.playing = false; tourbar.hidden = true; viewbar.hidden = false; }
+  if (r.lv !== level) setLevel(r.lv, true);
+  activeView = null; updatePressed();
+  mode = 'walk'; walkLv = r.lv; walkFloor = r.f; controls.enabled = false;
+  setCeiling(true); setCut(1000); useRoomLights(r.lv === 'house' ? null : r.lv);
+  yaw = r.yaw; pitch = r.pitch;
+  fly(new THREE.Vector3(r.x, r.f + EYE, r.z), quatYawPitch(yaw, pitch), () => {});
+  roomSel.value = String(ROOMS.indexOf(r));
+  updateFov();
+  document.getElementById('walkhelp').hidden = false;
+  document.getElementById('pad').hidden = !coarse;
+  updateTagsVisibility();
+  renderer.domElement.focus({ preventScroll: true });
+}
+roomSel.addEventListener('change', () => { if (roomSel.value !== '') jumpTo(ROOMS[+roomSel.value]); });
+// ---------- Wide-angle lens for first-person views ----------
+let wide = false;
+function setWide(on) {
+  wide = on;
+  ['wideBtn', 'tWide'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
+  updateFov(); invalidate();
+  try { localStorage.setItem('modelWide', on ? '1' : '0'); } catch (e) {}
+}
+['wideBtn', 'tWide'].forEach(id => document.getElementById(id).addEventListener('click', () => setWide(!wide)));
+window.addEventListener('keydown', e => {
+  if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.key.toLowerCase() === 'v' && !e.repeat) setWide(!wide);
+});
 const walkGroup = document.getElementById('walkGroup'), walkSep = document.getElementById('walkSep');
-function setLevel(lv) {
+function setLevel(lv, quiet) {
   level = lv; const L = LEVELS[lv];
   header(lv);
   document.getElementById('lvRooms').innerHTML = L.rooms; document.getElementById('lvDims').innerHTML = L.dims;
   document.getElementById('lvRoomsHead').textContent = lv === 'house' ? 'Levels (finished floor)' : 'Room schedule';
   cutInput.disabled = lv === 'house';
-  walkGroup.querySelectorAll('button.v').forEach(b => b.remove());
-  Object.entries(L.walks).forEach(([k, w]) => {
-    const b = document.createElement('button'); b.className = 'v'; b.dataset.view = k; b.textContent = w.label; b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => go(k)); walkGroup.insertBefore(b, document.getElementById('layersBtn'));
-  });
-  walkGroup.querySelector('.label-xs').hidden = walkSep.hidden = !Object.keys(L.walks).length;
-  go(mode === 'walk' && Object.keys(L.walks).length ? Object.keys(L.walks)[0] : lastOverview);
+  if (quiet) { updatePressed(); return; }
+  go(lastOverview);
 }
 document.querySelectorAll('button.v[data-lv]').forEach(b => b.addEventListener('click', () => setLevel(b.dataset.lv)));
 document.querySelectorAll('button.v[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
@@ -1648,7 +1705,7 @@ document.querySelectorAll('#pad button').forEach(b => {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => { pad[k] = false; }));
 });
 function blocked(x, z) {
-  if (tGhost.checked) return false;
+  if (tGhost.checked || !COL[walkLv]) return false;   // outside: no walls to bump into
   const r = 0.75, [bx0, bx1, bz0, bz1] = LEVELS[walkLv].bounds;
   if (x < bx0 + r || x > bx1 - r || z < bz0 + r || z > bz1 - 0.2) {
     // on the first floor, allow standing inside the front door reveal
@@ -1702,10 +1759,11 @@ const TAGS = [
 ];
 const tagLayer = document.getElementById('tags');
 TAGS.forEach(d => {
-  const el = document.createElement(d.v ? 'button' : 'div');
+  const el = document.createElement(roomFor(d.lv, d.t) ? 'button' : 'div');
   el.className = 'tag' + (d.minor ? ' minor' : '');
   el.innerHTML = d.t + (d.s ? `<small>${d.s}</small>` : '');
-  if (d.v) { el.type = 'button'; el.title = `Walk to ${d.t.toLowerCase()}`; el.addEventListener('click', () => go(d.v)); }
+  const room = roomFor(d.lv, d.t);
+  if (room) { el.type = 'button'; el.title = `Go to ${room.name.toLowerCase()}`; el.addEventListener('click', () => jumpTo(room)); }
   else el.style.cursor = 'default';
   tagLayer.appendChild(el); d.el = el; d.vec = new THREE.Vector3(...d.p);
 });
@@ -2081,15 +2139,16 @@ function resize() {
 }
 // keep a usable horizontal field of view in portrait windows
 function updateFov() {
-  const first = mode !== 'orbit', base = first ? 62 : 42, hMin = first ? 78 : 48;
+  const first = mode !== 'orbit', base = first ? (wide ? 88 : 62) : 42, hMin = first ? (wide ? 112 : 78) : 48;   // wide: ~112 deg across
   const need = 2 * Math.atan(Math.tan(hMin * Math.PI / 360) / camera.aspect) * 180 / Math.PI;
-  camera.fov = Math.min(first ? 100 : 75, Math.max(base, need));
+  camera.fov = Math.min(first ? (wide ? 125 : 100) : 75, Math.max(base, need));
   camera.near = first ? 0.15 : 0.6; camera.far = first ? 260 : 450;
   camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(app); resize();
 
 // initial view: first floor from the street side (no animation)
+{ let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1') setWide(true); }
 {
   const p = orbitPose('aerial', 'first'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
   setLevel('first'); flight = null; camera.position.set(...p.pos); controls.enabled = true; controls.update();
