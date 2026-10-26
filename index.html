@@ -384,6 +384,7 @@ const M = {
   porcelain: std(0xf7f7f5, 0.22),
   roof: std(0x5d6064, 0.9),
   rubber: std(0x2a2b2d, 0.85),
+  plateRed: std(0xa83a32, 0.6), plateBlue: std(0x2d5a9e, 0.6), plateYellow: std(0xd2ab3a, 0.6), plateGreen: std(0x3d7f4a, 0.6),
   mirror: std(0xc9d4db, 0.12, { metalness: 0.25 }),   // reads as light glass without an environment to reflect
   bedding: std(0xf1eee8, 0.95),
   poche: new THREE.MeshBasicMaterial({ color: 0x2d2b29, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }),
@@ -1063,7 +1064,7 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   C.push([7.83, 8.25, ZR, 10.02]);
   // doors: B002 to the cellar stair, B003 gym, B004 storage (open); sauna glass door
   leaf(0.9, 31.86, 2.6, Math.PI / 2, y0, 6.85, M.trim);
-  B(7.69, 7.77, y0 + 0.05, y0 + 6.95, 27.8, 31.8, M.trim); B(7.71, 7.83, y0 + 7.0, y0 + 7.15, 27.6, 35.8, M.steel); C.push([7.66, 7.83, 27.8, 31.8]);   // B003 slider, open
+  // B003 to the gym is a pocket door, shown open (in the wall)
   leaf(8.25, 22.0, 3.3, 0.15, y0, 6.95, M.trim);
   B(13.5, 15.85, y0, y0 + 6.85, 20.05, 20.12, M.glass, { parent: G.glass, shadow: false });
   // bathroom: vanity, wall-hung toilet, shower with glass
@@ -1105,31 +1106,37 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     const F = G.furniture;
     const xcyl = (x0, x1, y, z, r, mat) => { const m = addMesh(new THREE.CylinderGeometry(r, r, x1 - x0, 24), mat, F); m.rotation.z = Math.PI / 2; m.position.set((x0 + x1) / 2, y, z); };
     const zcyl = (x, y, z0, z1, r, mat) => { const m = addMesh(new THREE.CylinderGeometry(r, r, z1 - z0, 24), mat, F); m.rotation.x = Math.PI / 2; m.position.set(x, y, (z0 + z1) / 2); };
-    // insert platform, 8'-8" deep x 8'-1" wide x 4": steel edge, wood centre where the lifter stands, SVR rubber where the plates land
-    const pz = 32.2, pt = y0 + 0.335, px0 = 19.4 - 8.704, pw = 8.087 / 2, e = 0.15;
-    B(px0, 19.4, y0, pt - 0.01, pz - pw, pz + pw, M.iron, { parent: F, shadow: false });
-    B(px0 + e, 19.4 - e, pt - 0.01, pt, pz - 2, pz + 2, M.veneer, { parent: F, shadow: false });
-    B(px0 + e, 19.4 - e, pt - 0.01, pt, pz - pw + e, pz - 2, M.rubber, { parent: F, shadow: false }); B(px0 + e, 19.4 - e, pt - 0.01, pt, pz + 2, pz + pw - e, M.rubber, { parent: F, shadow: false });
-    // rack: front uprights (70 mm tube) 4'-0" apart, rear posts with plate horns, base rails, pull-up bar
-    const tw = 0.23, xf = 15.03, xr = 19.05, H = y0 + 7.75;
+    // insert platform, 8'-8" deep x 8'-1" wide x 4": the rack stands in the back 4'-0" (dark insert), the lifter on the
+    // 4'-8" in front of it (wood centre, SVR rubber where the plates land); steel edge all round
+    const pz = 32.2, pt = y0 + 0.335, pb = 19.4, px0 = pb - 8.704, pw = 8.087 / 2, e = 0.15, xi = pb - 4.0;
+    B(px0, pb, y0, pt - 0.01, pz - pw, pz + pw, M.iron, { parent: F, shadow: false });
+    B(xi, pb - e, pt - 0.01, pt, pz - pw + e, pz + pw - e, M.rubber, { parent: F, shadow: false });
+    B(px0 + e, xi, pt - 0.01, pt, pz - 2, pz + 2, M.veneer, { parent: F, shadow: false });
+    B(px0 + e, xi, pt - 0.01, pt, pz - pw + e, pz - 2, M.rubber, { parent: F, shadow: false }); B(px0 + e, xi, pt - 0.01, pt, pz + 2, pz + pw - e, M.rubber, { parent: F, shadow: false });
+    // rack, as built: on each side a main upright (J-hook, safety arm) with a plate-storage post just behind it, both
+    // 70 mm tube, joined at the top; the base foot runs forward under them; pull-up bar across the main uprights
+    const tw = 0.23, xm = 16.95, xs = 18.57, H = y0 + 7.75;
     [pz - 2 - tw, pz + 2].forEach(z => {
-      B(xf, xf + tw, pt, H, z, z + tw, M.iron, { parent: F }); B(xr, xr + tw, pt, y0 + 4.6, z, z + tw, M.iron, { parent: F });
-      B(xf + tw, xr, y0 + 4.35, y0 + 4.6, z + 0.03, z + tw - 0.03, M.iron, { parent: F });
-      B(xf - 0.35, xf, pt + 4.55, pt + 4.75, z + 0.05, z + tw - 0.05, M.iron, { parent: F });   // J-hook
-      B(xf - 2.6, xf, pt + 2.1, pt + 2.3, z + 0.03, z + tw - 0.03, M.iron, { parent: F });      // safety arm
+      B(xm, xm + tw, pt, H, z, z + tw, M.iron, { parent: F }); B(xs, xs + tw, pt, H - 0.25, z, z + tw, M.iron, { parent: F });
+      B(xm + tw, xs + tw, H - 0.25, H, z + 0.02, z + tw - 0.02, M.iron, { parent: F });
+      B(xi + 0.1, pb - 0.1, pt, pt + 0.2, z - 0.04, z + tw + 0.04, M.iron, { parent: F });   // base foot
+      B(xm - 0.35, xm, pt + 4.55, pt + 4.75, z + 0.05, z + tw - 0.05, M.iron, { parent: F });   // J-hook
+      B(xm - 2.0, xm, pt + 1.9, pt + 2.1, z + 0.03, z + tw - 0.03, M.iron, { parent: F });      // safety arm
     });
-    B(xf, xf + tw, H - 0.23, H, pz - 2, pz + 2, M.iron, { parent: F });
-    [[pz - 2 - tw, -1], [pz + 2 + tw, 1]].forEach(([z, s]) => [[pt + 1.0, 0.74], [pt + 2.7, 0.55]].forEach(([y, r]) => {
-      zcyl(xr + tw / 2, y, Math.min(z, z + s * 0.95), Math.max(z, z + s * 0.95), 0.08, M.steel);
-      zcyl(xr + tw / 2, y, Math.min(z + s * 0.08, z + s * 0.38), Math.max(z + s * 0.08, z + s * 0.38), r, M.rubber);   // stored bumper plates
+    B(xm, xm + tw, H - 0.23, H, pz - 2, pz + 2, M.iron, { parent: F });
+    // bumper plates stored on horns either side of the storage posts (25, 20, 15, 10 kg, all 450 mm)
+    [[pz - 2 - tw, -1], [pz + 2 + tw, 1]].forEach(([z, d]) => [M.plateRed, M.plateBlue, M.plateYellow, M.plateGreen].forEach((m, i) => {
+      const y = pt + 0.76 + i * 1.52, za = z, zb = z + d * 0.9, zc = z + d * 0.06, zd = z + d * 0.36;
+      zcyl(xs + tw / 2, y, Math.min(za, zb), Math.max(za, zb), 0.08, M.steel);
+      zcyl(xs + tw / 2, y, Math.min(zc, zd), Math.max(zc, zd), 0.738, m);
     }));
     // 20 kg bar on the J-hooks: 1.31 m between the sleeves, 2.2 m overall
-    zcyl(xf - 0.2, pt + 4.82, pz - 2.15, pz + 2.15, 0.047, M.steel);
-    zcyl(xf - 0.2, pt + 4.82, pz - 3.6, pz - 2.15, 0.082, M.steel); zcyl(xf - 0.2, pt + 4.82, pz + 2.15, pz + 3.6, 0.082, M.steel);
-    // flat bench pulled under the bar
-    B(11.25, 15.45, pt + 1.2, pt + 1.42, pz - 0.5, pz + 0.5, M.rubber, { parent: F });
-    B(11.6, 15.1, pt + 0.25, pt + 1.2, pz - 0.1, pz + 0.1, M.iron, { parent: F });
-    [11.45, 14.9].forEach(x => B(x - 0.12, x + 0.12, pt, pt + 0.3, pz - 0.75, pz + 0.75, M.iron, { parent: F }));
+    zcyl(xm - 0.2, pt + 4.82, pz - 2.15, pz + 2.15, 0.047, M.steel);
+    zcyl(xm - 0.2, pt + 4.82, pz - 3.6, pz - 2.15, 0.082, M.steel); zcyl(xm - 0.2, pt + 4.82, pz + 2.15, pz + 3.6, 0.082, M.steel);
+    // flat bench pulled under the bar, between the uprights
+    B(12.75, 17.0, pt + 1.2, pt + 1.42, pz - 0.5, pz + 0.5, M.rubber, { parent: F });
+    B(13.1, 16.65, pt + 0.25, pt + 1.2, pz - 0.1, pz + 0.1, M.iron, { parent: F });
+    [12.95, 16.8].forEach(x => B(x - 0.12, x + 0.12, pt, pt + 0.3, pz - 0.75, pz + 0.75, M.iron, { parent: F }));
     // treadmill along the front wall, facing east (clear run-off behind it to the west)
     B(12.6, 19.2, y0, y0 + 0.65, 37.15, 40.05, M.rubber, { parent: F }); B(12.75, 18.2, y0 + 0.65, y0 + 0.7, 37.55, 39.65, M.black, { parent: F, shadow: false });
     B(18.2, 19.2, y0, y0 + 1.1, 37.15, 40.05, M.iron, { parent: F });
@@ -1143,7 +1150,7 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     xcyl(9.37, 9.53, y0 + 1.05, 31.0, 0.75, M.steel); B(9.05, 9.85, y0 + 3.7, y0 + 4.35, 30.72, 30.78, M.black, { parent: F });
     // yoga mat
     B(8.55, 10.55, y0, y0 + 0.03, 34.2, 40.2, M.blue, { parent: F, shadow: false });
-    FCOL.basement.push([14.85, 19.4, pz - 3.2, pz + 3.2], [11.25, 15.45, pz - 0.75, pz + 0.75], [12.6, 19.2, 37.15, 40.05], [8.45, 10.45, 28.0, 31.7]);
+    FCOL.basement.push([xi, pb, pz - 3.1, pz + 3.1], [12.75, 17.0, pz - 0.75, pz + 0.75], [12.6, 19.2, 37.15, 40.05], [8.45, 10.45, 28.0, 31.7]);
     // family room: sofa under the rear window, low table, two lounge chairs
     B(11.0, 16.7, y0, y0 + 1.4, 2.0, 4.8, M.fabric, { parent: F }); B(11.0, 16.7, y0 + 1.4, y0 + 2.7, 2.0, 2.8, M.fabric, { parent: F });
     B(11.0, 11.6, y0 + 1.4, y0 + 2.1, 2.0, 4.8, M.fabric, { parent: F }); B(16.1, 16.7, y0 + 1.4, y0 + 2.1, 2.0, 4.8, M.fabric, { parent: F });
