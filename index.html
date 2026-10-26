@@ -713,10 +713,10 @@ B(DX0, DX1, -0.3, 0.008, ZF, 41.0, FLR(M.checker));
 // Elevations (heights, door splits, cooktop wall): design renderings, each scaled
 // against the plan; e.g. the cooktop wall's white run (rendering 3) spans 16.989 -> 27.6 = 10'-7".
 const K = G.kitchen;
-const BAND = 7.0;    // underside of the overhead ring = top of the blue niche
+const BAND = 7.0;    // underside of the overhead ring = top of the Treron niche
 const KCH = 9.67;    // kitchen ceiling 9'-8"
 const Wd = M.veneer, Cb = M.cabBody;
-M.nicheTop = std(0x6a778a, 0.32);
+M.accent = std(0x59664d, 0.75);   // Farrow & Ball Treron No. 292, tuned to read true to the paint under this lighting
 // One cabinet front on a face. axis 'x': face plane x = face, spans z a0..a1; axis 'z': face plane z = face, spans x a0..a1.
 // pull: 'top' | 'bottom' (short horizontal bar), 'v0' | 'v1' (vertical bar near a0 / a1), or false
 function front(axis, face, dir, a0, a1, v0, v1, mat, pull, pullLen) {
@@ -790,19 +790,19 @@ front('x', 9.183, 1, 27.5, 29.689, 2.68, BAND, Wd, 'v0', 0.6);
   frontRow('x', 16.956, -1, [KN, pm, 18.67], 0.05, 2.82, Wd, 'top');
   frontRow('x', 16.956, -1, [KN, pm, 18.67], 4.93, BAND, Wd, 'bottom');
 }
-// blue niche, z 18.67-25.92 (7'-3"), centered on the 10'-7" run
+// Treron niche, z 18.67-25.92 (7'-3"), centered on the 10'-7" run
 {
   const n0 = 18.67, n1 = 25.92, lt = 0.1;
   baseBody(16.956, 19.039, n0, n1);
   B(17.15, 19.039, 0, 0.33, n0, n1, TOE, { parent: K, shadow: false });
-  B(16.9, 19.039, 2.875, 3.0, n0, n1, M.nicheTop, { parent: K });
-  B(16.956, 19.039, 3.0, BAND, n0, n0 + lt, M.blue, { parent: K });
-  B(16.956, 19.039, 3.0, BAND, n1 - lt, n1, M.blue, { parent: K });
-  B(16.956, 19.039, BAND - lt, BAND, n0, n1, M.blue, { parent: K });
-  B(18.99, 19.039, 3.0, BAND - lt, n0 + lt, n1 - lt, M.blue, { parent: K });
-  // blue uppers 5'-0" to the niche top, 4 doors; slide-out hood under the middle pair
-  B(18.03, 18.99, 5.0, BAND - lt, 19.08, 25.33, M.blue, { parent: K });
-  frontRow('x', 18.03, -1, [19.08, 20.64, 22.2, 23.76, 25.33], 5.0, BAND - lt, M.blue, 'bottom');
+  B(16.9, 19.039, 2.875, 3.0, n0, n1, M.marble, { parent: K });   // same stone as the other countertops, for now
+  B(16.956, 19.039, 3.0, BAND, n0, n0 + lt, M.accent, { parent: K });
+  B(16.956, 19.039, 3.0, BAND, n1 - lt, n1, M.accent, { parent: K });
+  B(16.956, 19.039, BAND - lt, BAND, n0, n1, M.accent, { parent: K });
+  B(18.99, 19.039, 3.0, BAND - lt, n0 + lt, n1 - lt, M.accent, { parent: K });
+  // Treron uppers 5'-0" to the niche top, 4 doors; slide-out hood under the middle pair
+  B(18.03, 18.99, 5.0, BAND - lt, 19.08, 25.33, M.accent, { parent: K });
+  frontRow('x', 18.03, -1, [19.08, 20.64, 22.2, 23.76, 25.33], 5.0, BAND - lt, M.accent, 'bottom');
   B(17.35, 18.03, 4.88, 4.98, 20.64, 23.76, M.steel, { parent: K });
   // induction cooktop centered over the oven, z 20.87-23.67
   B(17.3, 18.75, 3.0, 3.015, 20.87, 23.67, M.ovenGlass, { parent: K, shadow: false });
@@ -860,18 +860,18 @@ frontRow('z', 27.6, -1, [9.183, 11.77, 14.37, 16.956], BAND + 0.15, KCH, M.cab, 
 // wood doors on the outside of the box (no pulls): living side (rendering 6) and dining side (rendering 1)
 frontRow('z', KN, -1, [6.85, 7.25, 9.33, 11.18, 13.72, 16.956], BAND + 0.02, TOP - 0.02, Wd, false);
 frontRow('z', 29.689, 1, [9.183, 11.85, 13.84, 16.32, 18.62], BAND + 0.02, TOP - 0.02, Wd, false);
-// blue open shelf: 1'-0" deep L hung just under the ring along its outer edge (A-100.00 dashed lines; renderings 2, 5, 6)
+// Treron open shelf: 1'-0" deep L hung just under the ring along its outer edge (A-100.00 dashed lines; renderings 2, 5, 6)
 {
   const y0 = 5.6, y1 = 6.9, th = 0.07;
   const d = KN - 13.906;
   [[7.06, 13.789, 14.44 + d, 15.44 + d], [7.06, 8.06, 15.44 + d, 24.356]].forEach(([x0, x1, z0, z1]) => {
-    B(x0, x1, y0, y0 + th, z0, z1, M.blue, { parent: K }); B(x0, x1, y1 - th, y1, z0, z1, M.blue, { parent: K });
+    B(x0, x1, y0, y0 + th, z0, z1, M.accent, { parent: K }); B(x0, x1, y1 - th, y1, z0, z1, M.accent, { parent: K });
   });
   [[13.719, 13.789, 14.44 + d, 15.44 + d], [9.77, 9.84, 14.44 + d, 15.44 + d], [11.77, 11.84, 14.44 + d, 15.44 + d],
    [7.06, 8.06, 24.286, 24.356], [7.06, 8.06, 20.4, 20.47], [7.06, 8.06, 22.4, 22.47]]
-    .forEach(([x0, x1, z0, z1]) => B(x0, x1, y0, y1, z0, z1, M.blue, { parent: K }));
-  [[7.56, 14.94 + d], [10.8, 14.94 + d], [13.5, 14.94 + d], [7.56, 20.9], [7.56, 23.9]].forEach(([x, z]) => cyl(x, z, y1, BAND, 0.035, M.blue, K, 8));
-  cyl(7.16, 14.54 + d, y0 + th, y1 - th, 0.021, M.blue, K, 10);   // open corner (as drawn), carried by a 1/2" steel hanger rod
+    .forEach(([x0, x1, z0, z1]) => B(x0, x1, y0, y1, z0, z1, M.accent, { parent: K }));
+  [[7.56, 14.94 + d], [10.8, 14.94 + d], [13.5, 14.94 + d], [7.56, 20.9], [7.56, 23.9]].forEach(([x, z]) => cyl(x, z, y1, BAND, 0.035, M.accent, K, 8));
+  cyl(7.16, 14.54 + d, y0 + th, y1 - th, 0.021, M.accent, K, 10);   // open corner (as drawn), carried by a 1/2" steel hanger rod
 }
 
 // ================= FURNITURE (illustrative) =================
