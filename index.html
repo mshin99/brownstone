@@ -163,6 +163,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 .roomsel { font: 500 13px var(--f-body); color: var(--ink); background: var(--chip); border: 1px solid var(--rule); border-radius: 3px; padding: 7px 8px; max-width: 190px; min-width: 0; }
 .roomsel:hover { border-color: var(--accent); }
+.speedsel { font: 500 12.5px var(--f-mono); color: var(--ink); background: var(--chip); border: 1px solid var(--rule); border-radius: 3px; padding: 6px 4px; font-variant-numeric: tabular-nums; }
+.speedlbl { margin-left: 4px; }
+.tourbtns { flex-wrap: wrap; }
 
 .loading { left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 14px; font-size: 13px; }
 
@@ -231,6 +234,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 </div>
 
 <nav class="overlay card viewbar" aria-label="Views">
+  <div class="group" role="group" aria-label="Go to a room" id="walkGroup">
+    <label class="label-xs" for="roomSel">Go to</label>
+    <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
+    <button class="v" id="wideBtn" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
+  </div>
+  <span class="sep" aria-hidden="true" id="walkSep"></span>
   <div class="group" role="group" aria-label="Level">
     <span class="label-xs">Level</span>
     <button class="v" data-lv="cellar" aria-pressed="false">Cellar</button>
@@ -250,13 +259,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <div class="group" role="group" aria-label="Guided walkthrough">
     <button class="v tourbtn" id="tourBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Walkthrough</button>
   </div>
-  <span class="sep" aria-hidden="true" id="walkSep"></span>
-  <div class="group" role="group" aria-label="Go to a room" id="walkGroup">
-    <label class="label-xs" for="roomSel">Go to</label>
-    <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
-    <button class="v" id="wideBtn" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
-    <button class="ic" id="layersBtn" aria-controls="layers">Layers</button>
-  </div>
+  <button class="ic" id="layersBtn" aria-controls="layers">Layers</button>
 </nav>
 
 <div class="overlay card tourbar" id="tourbar" role="group" aria-label="Walkthrough player" hidden>
@@ -276,13 +279,18 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <button class="tb play" id="tPlay" aria-label="Play" title="Play (Space)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg></button>
       <button class="tb" id="tFwd" aria-label="Fast forward" aria-pressed="false" title="Fast forward, press again for faster (L)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5v14l9.5-7zM12.5 5v14L22 12z"/></svg></button>
       <button class="tb" id="tNext" aria-label="Next room" title="Next room (Right arrow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 5H19v14h-2.5zM5 5v14l10.5-7z"/></svg></button>
-      <span class="tourrate" id="tourRate">1×</span>
+      <span class="tourrate" id="tourRate" aria-live="polite">1×</span>
+      <label class="label-xs speedlbl" for="tSpeed">Speed</label>
+      <select id="tSpeed" class="speedsel" title="Playback speed">
+        <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
+        <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+      </select>
+      <button class="v" id="tWide" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
     </div>
     <div class="tourside">
       <span class="eye">Eye 5'-3½" · 5'-8" person</span>
       <label class="label-xs" for="tourStops" style="position:absolute;left:-9999px">Jump to room</label>
       <select id="tourStops" aria-label="Jump to room"></select>
-      <button class="v" id="tWide" aria-pressed="false" title="Wide-angle lens (V)">Wide</button>
       <button class="ic" id="tExit">Exit</button>
     </div>
   </div>
@@ -2051,6 +2059,15 @@ function applyTourPose() {
   if (si >= 0 && tStops.value !== String(si)) tStops.value = String(si);
   invalidate();
 }
+const tSpeed = document.getElementById('tSpeed');
+tour.speed = 1;
+function setSpeed(v) {
+  const scanning = tour.playing && tour.rate !== tour.speed;
+  tour.speed = v; tSpeed.value = String(v);
+  if (tour.playing && !scanning) setRate(v); else syncPlayBtn();
+  try { localStorage.setItem('modelSpeed', String(v)); } catch (e) {}
+}
+tSpeed.addEventListener('change', () => setSpeed(parseFloat(tSpeed.value)));
 function setRate(r) {
   tour.rate = r; tour.playing = true; tour.lookYaw = tour.lookPitch = 0;
   document.getElementById('tourRate').textContent = `${r < 0 ? '−' : ''}${Math.abs(r)}×`;
@@ -2060,15 +2077,15 @@ function syncPlayBtn() {
   const on = tour.playing;
   tPlayBtn.innerHTML = on ? ICON.pause : ICON.play; tPlayBtn.setAttribute('aria-label', on ? 'Pause' : 'Play'); tPlayBtn.title = (on ? 'Pause' : 'Play') + ' (Space)';
   document.getElementById('tRew').setAttribute('aria-pressed', String(on && tour.rate < 0));
-  document.getElementById('tFwd').setAttribute('aria-pressed', String(on && tour.rate > 1));
+  document.getElementById('tFwd').setAttribute('aria-pressed', String(on && tour.rate > tour.speed));
 }
 function togglePlay() {
   if (tour.playing) { tour.playing = false; syncPlayBtn(); return; }
   if (tour.t >= TOUR.T - 0.05) tour.t = 0;
-  setRate(1);
+  setRate(tour.speed);
 }
 function rewind() { const seq = [-1, -2, -4, -8]; setRate(tour.rate >= 0 || !tour.playing ? -1 : seq[(seq.indexOf(tour.rate) + 1) % seq.length]); }
-function fastForward() { const seq = [2, 4, 8]; setRate(tour.rate < 2 || !tour.playing ? 2 : seq[(seq.indexOf(tour.rate) + 1) % seq.length]); }
+function fastForward() { const seq = [2, 4, 8].filter(v => v > tour.speed); const i = seq.indexOf(tour.rate); setRate(!tour.playing || i < 0 ? seq[0] : seq[(i + 1) % seq.length]); }
 function seek(t) { tour.t = Math.max(0, Math.min(TOUR.T, t)); tour.lookYaw = tour.lookPitch = 0; applyTourPose(); }
 function prevStop() { const s = [...TOUR.stops].reverse().find(s => s.t < tour.t - 1.0); seek(s ? s.t : 0); }
 function nextStop() { const s = TOUR.stops.find(s => s.t > tour.t + 0.05); seek(s ? s.t : TOUR.T); }
@@ -2080,7 +2097,7 @@ function startTour() {
   if (tour.t >= TOUR.T - 0.05) tour.t = 0;
   tour.lv = null; tour.playing = false; tour.lookYaw = tour.lookPitch = 0;
   const p = tourPose(tour.t);
-  fly(new THREE.Vector3(p.x, p.y, p.z), quatYawPitch(p.yaw, p.pitch), () => { applyTourPose(); setRate(1); });
+  fly(new THREE.Vector3(p.x, p.y, p.z), quatYawPitch(p.yaw, p.pitch), () => { applyTourPose(); setRate(tour.speed); });
   tPlayBtn.focus({ preventScroll: true });
 }
 function exitTour() {
@@ -2149,6 +2166,7 @@ new ResizeObserver(resize).observe(app); resize();
 
 // initial view: first floor from the street side (no animation)
 { let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1') setWide(true); }
+{ let sp = null; try { sp = parseFloat(localStorage.getItem('modelSpeed')); } catch (e) {} if ([0.5, 0.75, 1, 1.25, 1.5, 2].includes(sp)) { tour.speed = sp; tSpeed.value = String(sp); } }
 {
   const p = orbitPose('aerial', 'first'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
   setLevel('first'); flight = null; camera.position.set(...p.pos); controls.enabled = true; controls.update();
