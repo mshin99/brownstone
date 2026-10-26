@@ -1062,9 +1062,8 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   for (let i = 0; i <= 4; i++) { const z = ZR + i * (12.92 - ZR) / 4; B(7.93, 8.15, y0, y0 + 6.9, z - 0.08, z + 0.08, M.frame); }
   B(8.0, 8.06, y0, y0 + 6.9, ZR, 10.02, M.glass, { parent: G.glass, shadow: false });   // last panel slid open
   C.push([7.83, 8.25, ZR, 10.02]);
-  // doors: B002 to the cellar stair, B003 gym, B004 storage (open); sauna glass door
+  // doors: B002 to the cellar stair, B004 storage (open); B005 bath and B003 gym are pocket doors, shown open (in the wall); sauna glass door
   leaf(0.9, 31.86, 2.6, Math.PI / 2, y0, 6.85, M.trim);
-  // B003 to the gym is a pocket door, shown open (in the wall)
   leaf(8.25, 22.0, 3.3, 0.15, y0, 6.95, M.trim);
   B(13.5, 15.85, y0, y0 + 6.85, 20.05, 20.12, M.glass, { parent: G.glass, shadow: false });
   // bathroom: vanity, wall-hung toilet, shower with glass
@@ -1073,17 +1072,21 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   B(15.9, 15.95, y0, y0 + 7.0, 15.21, 18.0, M.glass, { parent: G.glass, shadow: false });
   B(15.95, 19.0, y0, y0 + 7.0, 19.45, 19.5, M.glass, { parent: G.glass, shadow: false });
   cyl(18.7, 16.5, y0 + 6.6, y0 + 6.7, 0.35, M.steel);
-  // sauna: wood-lined, one L-shaped bench along the east and south walls (seat 3'-2", up in the heat) with a footrest at
-  // 1'-6", heater beside the door (plan 02)
+  // sauna (design deck p.4): wood-lined, one L-shaped bench, the south run full width and the east run butting into it
+  // (seat raised to 3'-2", up in the heat, footrest at 1'-6"), 3-bar backrest on both walls, heater beside the door
   B(13.45, 18.98, y0 + 0.02, y1, 25.0, 25.05, M.veneer, { shadow: false }); B(18.95, 19.0, y0 + 0.02, y1, 20.3, 25.05, M.veneer, { shadow: false });
   B(13.41, 13.46, y0 + 0.02, y1, 20.3, 25.0, M.veneer, { shadow: false });
   B(15.91, 18.95, y0 + 0.02, y1, 20.3, 20.35, M.veneer, { shadow: false }); B(13.46, 15.91, y0 + 6.9, y1, 20.3, 20.35, M.veneer, { shadow: false });
   {
     const seat = y0 + 3.17, foot = y0 + 1.5, sl = 0.1, xb = 17.33, zb = 23.33, xf = 16.43, zf = 22.43, zh = 21.3;
-    B(17.48, 18.95, y0, seat - sl, 20.35, 25.0, M.veneer); B(13.46, 17.48, y0, seat - sl, 23.48, 25.0, M.veneer);   // skirts, set back under the nosing
+    B(17.48, 18.95, y0, seat - sl, 20.35, 23.48, M.veneer); B(13.46, 18.95, y0, seat - sl, 23.48, 25.0, M.veneer);   // skirts, set back under the nosing
     for (let i = 0; i < 4; i++) {
-      const xa = xb + i * 0.405; B(xa, xa + 0.36, seat - sl, seat, 20.35, 25.0, M.oak);
-      const za = zb + i * 0.4175; B(13.46, xb, seat - sl, seat, za, za + 0.3725, M.oak);
+      const xa = xb + i * 0.405; B(xa, xa + 0.36, seat - sl, seat, 20.35, zb, M.oak);
+      const za = zb + i * 0.4175; B(13.46, 18.95, seat - sl, seat, za, za + 0.3725, M.oak);
+    }
+    for (let i = 0; i < 3; i++) {   // backrest bars, 1'-0" above the seat over 1'-2"
+      const y = seat + 1.0 + i * 0.5;
+      B(18.75, 18.87, y, y + 0.17, 20.35, 25.0, M.oak); B(13.46, 18.75, y, y + 0.17, 24.8, 24.92, M.oak);
     }
     // footrest: two slats on a set-back skirt, stopping short of the heater
     B(xf + 0.15, xb, y0, foot - sl, zh, zb, M.veneer); B(13.46, xf + 0.15, y0, foot - sl, zf + 0.15, zb, M.veneer);
