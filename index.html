@@ -201,6 +201,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <label class="row" for="tTags"><span>Room tags</span><input type="checkbox" id="tTags" checked></label>
     <label class="row" for="tCeil"><span>Ceiling lights</span><input type="checkbox" id="tCeil"></label>
     <label class="row" for="tExt"><span>Stoop, deck &amp; yard</span><input type="checkbox" id="tExt" checked></label>
+    <label class="row" for="tEdge"><span>Outlines</span><input type="checkbox" id="tEdge" checked></label>
     <label class="row" for="tTex"><span>Detailed textures</span><input type="checkbox" id="tTex"></label>
     <label class="row" for="tGhost"><span>Walk through walls <kbd class="k">G</kbd></span><input type="checkbox" id="tGhost"></label>
     <div class="slider">
@@ -487,7 +488,7 @@ const M = {
   porcelain: std(0xf7f7f5, 0.22),
   roof: std(0x5d6064, 0.9),
   rubber: std(0x2a2b2d, 0.85),
-  mirror: std(0xcdd6dc, 0.05, { metalness: 0.9 }),
+  mirror: std(0xc9d4db, 0.12, { metalness: 0.25 }),   // reads as light glass without an environment to reflect
   bedding: std(0xf1eee8, 0.95),
   poche: new THREE.MeshBasicMaterial({ color: 0x2d2b29, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }),
 };
@@ -504,6 +505,8 @@ function boxGeo(w, h, d, unitUV) {
 // [x0, x1, z0, z1] footprints the walker can't enter, per level
 const COL = { cellar: [], basement: [], first: [], second: [] }, FCOL = { cellar: [], basement: [], first: [], second: [] };
 const colliders = COL.first, furnColliders = FCOL.first;
+const SOLIDS = [];   // world-space boxes, used to tell real corners from butt joints when drawing outlines
+const SOLID_LAYERS = new Set([G.structure, G.kitchen, G.furniture, G.exterior]);
 function B(x0, x1, y0, y1, z0, z1, mat, o) {
   o = o || {};
   const m = new THREE.Mesh(boxGeo(x1 - x0, y1 - y0, z1 - z0, o.unitUV), mat);
@@ -511,6 +514,7 @@ function B(x0, x1, y0, y1, z0, z1, mat, o) {
   m.castShadow = o.shadow !== false; m.receiveShadow = true;
   (o.parent || G.structure).add(m);
   if (o.poche) { const p = new THREE.Mesh(m.geometry, M.poche); p.castShadow = false; m.add(p); }
+  if ((!o.parent || SOLID_LAYERS.has(o.parent)) && mat !== M.glass && mat !== M.downlight) SOLIDS.push([x0, x1, y0, y1, z0, z1]);
   if (o.collide) colliders.push([x0, x1, z0, z1]);
   if (o.fcollide) furnColliders.push([x0, x1, z0, z1]);
   return m;
@@ -1347,12 +1351,21 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   B(-0.7, 20.7, frontTop, L2 + 13.17, ZFE - 0.3, ZFE + 1.6, M.stoneTrim, { poche: true });
   for (let x = 0.4; x < 20.3; x += 2.55) B(x - 0.22, x + 0.22, L2 + 10.9, frontTop, ZFE, ZFE + 1.3, M.stoneTrim);
   // roof: plaster ceiling under a membrane-covered deck; openings for the skylights and the glazed hatch
-  const seg = (x0, x1, z0, z1) => {
-    prismZY([[z0, yCeil2(z0)], [z1, yCeil2(z1)], [z1, yCeil2(z1) + 0.06], [z0, yCeil2(z0) + 0.06]], x0, x1, M.ceiling, G.structure, false);
-    prismZY([[z0, yCeil2(z0) + 0.06], [z1, yCeil2(z1) + 0.06], [z1, yRoof(z1)], [z0, yRoof(z0)]], x0, x1, M.roof, G.structure, true);
-  };
-  seg(XL, 1.2, ZR2, ZF); seg(1.2, 4.3, ZR2, 16.8); seg(1.2, 4.3, 24.2, 24.4); seg(1.2, 4.3, 27.0, ZF);
-  seg(4.3, 11.2, ZR2, ZF); seg(11.2, 13.3, ZR2, 16.6); seg(11.2, 13.3, 21.4, ZF); seg(13.3, XR, ZR2, ZF);
+  {
+    const openings = [[1.2, 4.3, 16.8, 24.2], [1.2, 4.3, 24.4, 27.0], [11.2, 13.3, 16.6, 21.4]];
+    const surface = (fy, mat, dz0, dz1) => {   // one sloped sheet over the whole floor plate, following fy(z)
+      const sh = new THREE.Shape(); sh.moveTo(XL, ZR2 - dz0); sh.lineTo(XR, ZR2 - dz0); sh.lineTo(XR, ZF + dz1); sh.lineTo(XL, ZF + dz1); sh.closePath();
+      openings.forEach(([x0, x1, z0, z1]) => { const h = new THREE.Path(); h.moveTo(x0, z0); h.lineTo(x1, z0); h.lineTo(x1, z1); h.lineTo(x0, z1); h.closePath(); sh.holes.push(h); });
+      const g = new THREE.ShapeGeometry(sh), a = g.attributes.position;
+      for (let i = 0; i < a.count; i++) { const x = a.getX(i), z = a.getY(i); a.setXYZ(i, x, fy(z), z); }
+      g.computeVertexNormals(); g.computeBoundingSphere();
+      return addMesh(g, mat, G.structure);
+    };
+    M.ceilingSheet = M.ceiling.clone(); M.ceilingSheet.side = THREE.DoubleSide;
+    M.roofSheet = M.roof.clone(); M.roofSheet.side = THREE.DoubleSide;
+    surface(yCeil2, M.ceilingSheet, 0, 0);
+    surface(yRoof, M.roofSheet, 0, 0);
+  }
   [[1.2, 4.3, 16.8, 24.2], [1.2, 4.3, 24.4, 27.0], [11.2, 13.3, 16.6, 21.4]].forEach(([x0, x1, z0, z1]) => {
     const ylo = yCeil2(z0), yhi = yRoof(z1) + 0.6;
     B(x0, x0 + 0.05, ylo, yhi, z0, z1, M.ceiling); B(x1 - 0.05, x1, ylo, yhi, z0, z1, M.ceiling);
@@ -1405,15 +1418,66 @@ function mergeLayer(group) {
 }
 ['structure', 'kitchen', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => mergeLayer(G[k]));
 
+// ================= OUTLINES =================
+// Thin lines wherever two surfaces meet at an angle, so walls and corners read in tight spaces even with flat colors.
+// Surfaces get a small depth offset so the lines sit cleanly on top of them; the section fill keeps a larger one.
+Object.values(M).forEach(m => { if (m && m.isMaterial && m !== M.poche) { m.polygonOffset = true; m.polygonOffsetFactor = 1; m.polygonOffsetUnits = 1; } });
+M.poche.polygonOffsetFactor = 3; M.poche.polygonOffsetUnits = 6;
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x2b2926, transparent: true, opacity: 0.45 });
+// Remove lines where separate boxes butt together in one plane. Around an axis-aligned edge, look at the four
+// quarters of the plane across it: two solid quarters side by side means a flat surface continues through
+// (a joint, not a corner); one or three solid quarters is a real outside or inside corner and stays.
+const solidAt = (() => {
+  const C = 2, grid = new Map(), key = (i, j, k) => i + ',' + j + ',' + k;
+  SOLIDS.forEach((b, n) => {
+    for (let i = Math.floor(b[0] / C); i <= Math.floor(b[1] / C); i++) for (let j = Math.floor(b[2] / C); j <= Math.floor(b[3] / C); j++)
+      for (let k = Math.floor(b[4] / C); k <= Math.floor(b[5] / C); k++) { const kk = key(i, j, k); if (!grid.has(kk)) grid.set(kk, []); grid.get(kk).push(n); }
+  });
+  return (x, y, z) => {
+    const list = grid.get(key(Math.floor(x / C), Math.floor(y / C), Math.floor(z / C)));
+    return !!list && list.some(n => { const b = SOLIDS[n]; return x > b[0] && x < b[1] && y > b[2] && y < b[3] && z > b[4] && z < b[5]; });
+  };
+})();
+function dropButtJoints(geo) {
+  const a = geo.attributes.position.array, keep = [], e = 0.012;
+  for (let i = 0; i < a.length; i += 6) {
+    const p = [a[i], a[i + 1], a[i + 2]], q = [a[i + 3], a[i + 4], a[i + 5]], d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+    const axis = [0, 1, 2].filter(c => Math.abs(d[c]) > 1e-4);
+    if (axis.length === 1) {
+      const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], [u, v] = [0, 1, 2].filter(c => c !== axis[0]);
+      const quad = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([su, sv]) => { const t = m.slice(); t[u] += su * e; t[v] += sv * e; return solidAt(t[0], t[1], t[2]); });
+      const n = quad.filter(Boolean).length;
+      if (n === 0 || n === 4) continue;
+      if (n === 2 && (quad[0] === quad[1] || quad[1] === quad[2])) continue;   // two adjacent solid quarters: a joint
+    }
+    for (let k = 0; k < 6; k++) keep.push(a[i + k]);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3)); return g;
+}
+{
+  const skip = new Set([M.poche, M.glass, M.downlight, M.rug, M.lampShade]);
+  const ground = new Set([M.concrete, M.grass, M.asphalt, M.basement]);
+  ['structure', 'kitchen', 'furniture', 'exterior'].forEach(k => {
+    [...G[k].children].forEach(m => {
+      if (!m.isMesh || skip.has(m.material) || (k === 'exterior' && ground.has(m.material))) return;
+      const e = new THREE.LineSegments(dropButtJoints(new THREE.EdgesGeometry(m.geometry, 28)), edgeMat);
+      e.matrixAutoUpdate = false; G[k].add(e);   // lives in the same layer, so the layer toggles hide it too
+    });
+  });
+}
+
 // ================= LIGHTING =================
-const hemi = new THREE.HemisphereLight(0xfff7ec, 0x8c8072, 0.62); scene.add(hemi);
+const hemi = new THREE.HemisphereLight(0xfff7ec, 0x8c8072, 0.52); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.05);
 sun.position.set(48, 70, 78); sun.target.position.set(10, 0, 20); scene.add(sun.target);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 5, far: 220 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0xdfe8ff, 0.28); fill.position.set(-30, 40, -40); scene.add(fill);
+// Unshadowed key and fill from different angles: walls facing +x, -x, +z and -z each get a distinct shade
+// (about 10-15% apart), so two walls meeting at a corner never read as one flat surface.
+const fill = new THREE.DirectionalLight(0xdfe8ff, 0.22); fill.position.set(-36, 24, -19); scene.add(fill);
+const key = new THREE.DirectionalLight(0xfff4e6, 0.25); key.position.set(40, 21, 13); scene.add(key);
 const lightPool = [0, 1, 2, 3, 4].map(() => { const p = new THREE.PointLight(0xffe2b8, 0.55, 22, 2); p.visible = false; scene.add(p); return p; });
 function useRoomLights(lv) {   // lv null: overview (pool off); otherwise all five stay on so levels switch without shader recompiles
   const list = lv ? roomLights.filter(l => l.lv === lv) : [];
@@ -1658,7 +1722,7 @@ function updateOcclusion() {
     if (d.lv !== level) return;
     const dir = d.vec.clone().sub(camera.position), dist = dir.length();
     ray.set(camera.position, dir.normalize()); ray.far = dist - 0.6;
-    d.hiddenBehind = ray.intersectObjects(objs, true).some(h => h.point.y < cutPlane.constant && h.object.material !== M.glass && h.object.material !== M.poche && h.object.parent.visible);
+    d.hiddenBehind = ray.intersectObjects(objs, true).some(h => h.object.isMesh && h.point.y < cutPlane.constant && h.object.material !== M.glass && h.object.material !== M.poche && h.object.parent.visible);
   });
 }
 function placeTags(w, h) {
@@ -1678,6 +1742,10 @@ tTags.addEventListener('change', () => { updateTagsVisibility(); invalidate(); }
 const tTex = document.getElementById('tTex');
 const TEXTURED = [[M.oak, 0xc49a6c], [M.brick, 0x98563f], [M.stone, 0x77543f], [M.checker, 0xbab6ae], [M.marble, 0xebe9e5], [M.veneer, 0xc68a55],
   [M.paver, 0xa3a09a], [M.grass, 0x7a9360], [M.concrete, 0xbfbcb6], [M.rug, 0x8f8578], [M.tile, 0xd9d5ce], [M.cooktop, 0x18191b]].map(([m, c]) => ({ m, c, map: m.map }));
+const tEdge = document.getElementById('tEdge');
+function setOutlines(on) { edgeMat.visible = on; tEdge.checked = on; invalidate(); }
+tEdge.addEventListener('change', () => { setOutlines(tEdge.checked); try { localStorage.setItem('modelOutlines', tEdge.checked ? '1' : '0'); } catch (e) {} });
+{ let pref = null; try { pref = localStorage.getItem('modelOutlines'); } catch (e) {} setOutlines(pref !== '0'); }
 function setDetailed(on) {
   TEXTURED.forEach(({ m, c, map }) => { m.map = on ? map : null; m.color.setHex(on ? 0xffffff : c); m.needsUpdate = true; });
   tTex.checked = on; invalidate(true);
