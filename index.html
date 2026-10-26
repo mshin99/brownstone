@@ -75,9 +75,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--f-body); ove
 .panelhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
 .row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
-.slider { display: grid; gap: 6px; }
-.slider .row span:last-child { font-family: var(--f-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
-.slider input { width: 100%; accent-color: var(--accent); }
 hr.r { border: 0; border-top: 1px solid var(--rule); margin: 0; }
 .schedule { display: grid; gap: 0; font-size: 12.5px; }
 .schedule div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--rule); }
@@ -210,10 +207,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <label class="row" for="tEdge"><span>Outlines</span><input type="checkbox" id="tEdge" checked></label>
     <label class="row" for="tTex"><span>Detailed textures</span><input type="checkbox" id="tTex"></label>
     <label class="row" for="tGhost"><span>Walk through walls <kbd class="k">G</kbd></span><input type="checkbox" id="tGhost"></label>
-    <div class="slider">
-      <div class="row"><label for="cut">Section cut height</label><span id="cutVal">11'-2"</span></div>
-      <input type="range" id="cut" min="3" max="12.5" step="0.25" value="11.2">
-    </div>
     <hr class="r">
     <div>
       <div class="label-xs" style="margin-bottom:4px" id="lvRoomsHead">Room schedule</div>
@@ -1559,17 +1552,13 @@ function orbitPose(name, lv) {
   return { aerial: { pos: [40, y + 47, 70], target: [9.5, y, 21] }, garden: { pos: [-20, y + 40, -30], target: [10, y, 16] }, plan: { pos: [10, y + 82, 21.6], target: [10, y, 21.5] } }[name];
 }
 const EYE = 5.3;
-let mode = 'orbit', level = 'first', walkLv = 'first', yaw = 0, pitch = 0, flight = null, userCut = null, activeView = 'aerial', lastOverview = 'aerial';
-const cutInput = document.getElementById('cut'), cutVal = document.getElementById('cutVal');
+let mode = 'orbit', level = 'first', walkLv = 'first', yaw = 0, pitch = 0, flight = null, activeView = 'aerial', lastOverview = 'aerial';
 const tCeil = document.getElementById('tCeil');
 
-function fmtFt(v) { const ft = Math.floor(v + 1e-6), inch = Math.round((v - ft) * 12); return inch === 12 ? `${ft + 1}'-0"` : `${ft}'-${inch}"`; }
 function setCut(abs) {
   cutPlane.constant = abs;
   earthCap.visible = abs < GRADE_R - 0.2; earthCap.position.y = abs - 0.02;
   invalidate(true);
-  const rel = abs - LEVELS[level].y, off = level === 'house' || rel > 12.4;
-  cutInput.value = off ? 12.5 : rel; cutVal.textContent = off ? 'Off' : fmtFt(rel);
 }
 function setCeiling(on) { G.ceiling.visible = on; tCeil.checked = on; invalidate(true); }
 
@@ -1594,7 +1583,7 @@ function go(name) {
     lastOverview = name; mode = 'orbit'; controls.enabled = false; roomSel.value = '';
     setCeiling(false); useRoomLights(null);
     if (level === 'house') setCut(1000);
-    else setCut(name === 'plan' ? L.y + 4.0 : (userCut != null ? (userCut >= 12.5 ? 1000 : L.y + userCut) : L.y + L.cut));
+    else setCut(name === 'plan' ? L.y + 4.0 : L.y + L.cut);   // just under the level's ceiling; plans cut at 4'-0"
     const p = orbitPose(name, level), pos = new THREE.Vector3(...p.pos), tgt = new THREE.Vector3(...p.target);
     fly(pos, quatLook(pos, tgt), () => { controls.target.copy(tgt); controls.enabled = true; controls.update(); });
   } else {
@@ -1671,7 +1660,6 @@ function setLevel(lv, quiet) {
   header(lv);
   document.getElementById('lvRooms').innerHTML = L.rooms; document.getElementById('lvDims').innerHTML = L.dims;
   document.getElementById('lvRoomsHead').textContent = lv === 'house' ? 'Levels (finished floor)' : 'Room schedule';
-  cutInput.disabled = lv === 'house';
   if (quiet) { updatePressed(); return; }
   go(lastOverview);
 }
@@ -1821,10 +1809,6 @@ tTex.addEventListener('change', () => { setDetailed(tTex.checked); try { localSt
 tFurn.addEventListener('change', () => { G.furniture.visible = tFurn.checked; invalidate(true); });
 tExt.addEventListener('change', () => { G.exterior.visible = tExt.checked; invalidate(true); });
 tCeil.addEventListener('change', () => { G.ceiling.visible = tCeil.checked; invalidate(true); });
-cutInput.addEventListener('input', () => {
-  const v = parseFloat(cutInput.value); userCut = v;
-  if (mode === 'orbit' && level !== 'house') setCut(v >= 12.5 ? 1000 : LEVELS[level].y + v);
-});
 const layers = document.getElementById('layers'), collapseBtn = document.getElementById('collapseBtn'), layersBtn = document.getElementById('layersBtn');
 function setLayersOpen(open) {
   const narrow = window.matchMedia('(max-width: 760px)').matches;
