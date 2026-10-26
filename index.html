@@ -87,7 +87,7 @@ hr.r { border: 0; border-top: 1px solid var(--rule); margin: 0; }
   left: 50%; transform: translateX(-50%);
   bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px;
-  padding: 8px 10px; max-width: calc(100vw - 32px);
+  padding: 8px 10px; width: max-content; max-width: calc(100vw - 32px);
 }
 .group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; }
 .group .label-xs { margin-right: 4px; }
@@ -199,8 +199,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <button class="ic" id="collapseBtn" aria-expanded="true" aria-controls="layersBody" style="padding:5px 8px;font-size:12px">Hide</button>
   </div>
   <div class="body" id="layersBody">
-    <label class="row" for="tFurn"><span>Furniture (illustrative)</span><input type="checkbox" id="tFurn" checked></label>
-    <hr class="r">
     <div>
       <div class="label-xs" style="margin-bottom:4px" id="lvRoomsHead">Room schedule</div>
       <div class="schedule" id="lvRooms"></div>
@@ -210,7 +208,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </div>
 </aside>
 
-<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> wide angle</div>
+<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> wide angle &middot; <kbd>F</kbd> furniture</div>
 
 <div class="overlay card pad" id="pad" hidden>
   <button class="ic up" data-k="f" aria-label="Walk forward">&uarr;</button>
@@ -224,6 +222,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <label class="label-xs" for="roomSel">Go to</label>
     <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
     <button class="v" id="wideBtn" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
+    <button class="v" id="furnBtn" aria-pressed="true" title="Show illustrative furniture (F)">Furniture</button>
   </div>
   <span class="sep" aria-hidden="true" id="walkSep"></span>
   <div class="group" role="group" aria-label="Level">
@@ -272,6 +271,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
       </select>
       <button class="v" id="tWide" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
+      <button class="v" id="tFurn" aria-pressed="true" title="Show illustrative furniture (F)">Furniture</button>
     </div>
     <div class="tourside">
       <span class="eye">Eye 5'-3½" · 5'-8" person</span>
@@ -1542,6 +1542,18 @@ window.addEventListener('keydown', e => {
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.key.toLowerCase() === 'v' && !e.repeat) setWide(!wide);
 });
+// ---------- Furniture (illustrative; also collides when walking) ----------
+function setFurniture(on) {
+  G.furniture.visible = on;
+  ['furnBtn', 'tFurn'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
+  invalidate(true);
+  try { localStorage.setItem('modelFurn', on ? '1' : '0'); } catch (e) {}
+}
+['furnBtn', 'tFurn'].forEach(id => document.getElementById(id).addEventListener('click', () => setFurniture(!G.furniture.visible)));
+window.addEventListener('keydown', e => {
+  if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.key.toLowerCase() === 'f' && !e.repeat && !e.metaKey && !e.ctrlKey) setFurniture(!G.furniture.visible);
+});
 const walkGroup = document.getElementById('walkGroup'), walkSep = document.getElementById('walkSep');
 function setLevel(lv, quiet) {
   level = lv; const L = LEVELS[lv];
@@ -1650,7 +1662,6 @@ TAGS.forEach(d => {
   else el.style.cursor = 'default';
   tagLayer.appendChild(el); d.el = el; d.vec = new THREE.Vector3(...d.p);
 });
-const tFurn = document.getElementById('tFurn');
 function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level === 'house'; occDirty = true; }
 const tmpV = new THREE.Vector3(), ray = new THREE.Raycaster();
 // hide a tag when solid geometry below the section cut stands between it and the camera (run once the camera settles)
@@ -1675,7 +1686,6 @@ function placeTags(w, h) {
 }
 
 // ---------- Panel wiring ----------
-tFurn.addEventListener('change', () => { G.furniture.visible = tFurn.checked; invalidate(true); });
 const layers = document.getElementById('layers'), collapseBtn = document.getElementById('collapseBtn'), layersBtn = document.getElementById('layersBtn');
 function setLayersOpen(open) {
   const narrow = window.matchMedia('(max-width: 760px)').matches;
@@ -2017,6 +2027,7 @@ new ResizeObserver(resize).observe(app); resize();
 
 // initial view: first floor from the street side (no animation)
 { let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1') setWide(true); }
+{ let pref = null; try { pref = localStorage.getItem('modelFurn'); } catch (e) {} if (pref === '0') setFurniture(false); }
 { let sp = null; try { sp = parseFloat(localStorage.getItem('modelSpeed')); } catch (e) {} if ([0.5, 0.75, 1, 1.25, 1.5, 2].includes(sp)) { tour.speed = sp; tSpeed.value = String(sp); } }
 {
   const p = orbitPose('aerial', 'first'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
