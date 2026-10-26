@@ -80,7 +80,6 @@ hr.r { border: 0; border-top: 1px solid var(--rule); margin: 0; }
 .schedule div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--rule); }
 .schedule div:last-child { border-bottom: 0; }
 .schedule span:last-child { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
-.k { font-family: var(--f-mono); font-size: 10.5px; border: 1px solid var(--rule); padding: 0 4px; border-radius: 2px; color: var(--muted); margin-left: 4px; }
 .note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 0; }
 
 /* View bar */
@@ -194,19 +193,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </div>
 </header>
 
-<aside class="overlay card layers" id="layers" data-collapsed="false" aria-label="Model layers and room schedule">
+<aside class="overlay card layers" id="layers" data-collapsed="true" aria-label="Model info and room schedule">
   <div class="panelhead">
-    <h2>Layers</h2>
+    <h2>Info</h2>
     <button class="ic" id="collapseBtn" aria-expanded="true" aria-controls="layersBody" style="padding:5px 8px;font-size:12px">Hide</button>
   </div>
   <div class="body" id="layersBody">
     <label class="row" for="tFurn"><span>Furniture (illustrative)</span><input type="checkbox" id="tFurn" checked></label>
-    <label class="row" for="tTags"><span>Room tags</span><input type="checkbox" id="tTags" checked></label>
-    <label class="row" for="tCeil"><span>Ceiling lights</span><input type="checkbox" id="tCeil"></label>
-    <label class="row" for="tExt"><span>Stoop, deck &amp; yard</span><input type="checkbox" id="tExt" checked></label>
-    <label class="row" for="tEdge"><span>Outlines</span><input type="checkbox" id="tEdge" checked></label>
-    <label class="row" for="tTex"><span>Detailed textures</span><input type="checkbox" id="tTex"></label>
-    <label class="row" for="tGhost"><span>Walk through walls <kbd class="k">G</kbd></span><input type="checkbox" id="tGhost"></label>
     <hr class="r">
     <div>
       <div class="label-xs" style="margin-bottom:4px" id="lvRoomsHead">Room schedule</div>
@@ -217,7 +210,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </div>
 </aside>
 
-<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> wide angle &middot; <kbd>G</kbd> <span id="ghostState">walls solid</span></div>
+<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> wide angle</div>
 
 <div class="overlay card pad" id="pad" hidden>
   <button class="ic up" data-k="f" aria-label="Walk forward">&uarr;</button>
@@ -252,7 +245,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <div class="group" role="group" aria-label="Guided walkthrough">
     <button class="v tourbtn" id="tourBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Walkthrough</button>
   </div>
-  <button class="ic" id="layersBtn" aria-controls="layers">Layers</button>
+  <button class="ic" id="layersBtn" aria-controls="layers">Info</button>
 </nav>
 
 <div class="overlay card tourbar" id="tourbar" role="group" aria-label="Walkthrough player" hidden>
@@ -344,123 +337,19 @@ camera.rotation.order = 'YXZ';
 const G = {};
 ['structure', 'kitchen', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => { G[k] = new THREE.Group(); scene.add(G[k]); });
 
-// ---------- Textures ----------
-function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-const maxAniso = renderer.capabilities.getMaxAnisotropy();
-function tex(w, h, sizeU, sizeV, draw) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const g = c.getContext('2d'); draw(g, w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = maxAniso;
-  if (sizeU) t.repeat.set(1 / sizeU, 1 / sizeV);
-  return t;
-}
-function rgb(r, g, b, k) { k = k || 1; return `rgb(${Math.min(255, r * k) | 0},${Math.min(255, g * k) | 0},${Math.min(255, b * k) | 0})`; }
-function speckle(g, w, h, n, R, color, aMax, size) {
-  for (let i = 0; i < n; i++) { g.fillStyle = color.replace('A', (R() * aMax).toFixed(3)); const s = size * (0.5 + R()); g.fillRect(R() * w, R() * h, s, s); }
-}
-
-const oakTex = tex(512, 1024, 4, 8, (g, w, h) => {
-  const R = rng(11), pw = 64;
-  for (let i = 0; i < 8; i++) {
-    let y = R() * h, used = 0;
-    while (used < h) {
-      const len = Math.min(170 + R() * 420, h - used);
-      const k = 0.86 + R() * 0.22;
-      const draw = (yy) => {
-        g.fillStyle = rgb(205, 156, 104, k); g.fillRect(i * pw, yy, pw, len);
-        for (let j = 0; j < 16; j++) {
-          g.strokeStyle = `rgba(110,66,30,${0.05 + R() * 0.1})`; g.lineWidth = 0.6 + R() * 1.2;
-          const x0 = i * pw + R() * pw; g.beginPath(); g.moveTo(x0, yy);
-          g.bezierCurveTo(x0 + (R() - 0.5) * 8, yy + len * 0.33, x0 + (R() - 0.5) * 8, yy + len * 0.66, x0 + (R() - 0.5) * 6, yy + len); g.stroke();
-        }
-        g.fillStyle = 'rgba(70,42,20,0.45)'; g.fillRect(i * pw, yy, pw, 2);
-      };
-      draw(y); if (y + len > h) draw(y - h);
-      y = (y + len) % h; used += len;
-    }
-    g.fillStyle = 'rgba(70,42,20,0.4)'; g.fillRect(i * pw, 0, 1.5, h);
-  }
-});
-const brickTex = tex(512, 256, 2.667, 1.333, (g, w, h) => {
-  const R = rng(5); g.fillStyle = '#b4aca1'; g.fillRect(0, 0, w, h);
-  const ch = h / 6, bw = w / 4;
-  for (let r = 0; r < 6; r++) for (let c = -1; c < 5; c++) {
-    const x = c * bw + (r % 2 ? bw / 2 : 0); const k = 0.8 + R() * 0.35;
-    g.fillStyle = rgb(146, 74, 52, k); g.fillRect(x + 3, r * ch + 3, bw - 6, ch - 6);
-  }
-  speckle(g, w, h, 2500, R, 'rgba(30,15,10,A)', 0.15, 2);
-});
-const stoneTex = tex(512, 512, 6, 6, (g, w, h) => {
-  const R = rng(9); g.fillStyle = '#6f4d3c'; g.fillRect(0, 0, w, h);
-  speckle(g, w, h, 9000, R, 'rgba(40,25,18,A)', 0.18, 3);
-  speckle(g, w, h, 5000, R, 'rgba(170,130,105,A)', 0.12, 2);
-  g.fillStyle = 'rgba(40,26,20,0.55)';
-  for (let r = 0; r < 4; r++) { g.fillRect(0, r * 128, w, 2); let x = R() * 200; while (x < w) { g.fillRect(x, r * 128, 2, 128); x += 220 + R() * 160; } }
-});
-const marbleTex = tex(512, 512, 4, 4, (g, w, h) => {
-  const R = rng(3); g.fillStyle = '#eeece8'; g.fillRect(0, 0, w, h);
-  for (let v = 0; v < 14; v++) {
-    let x = R() * w, y = R() * h; g.strokeStyle = `rgba(120,122,128,${0.06 + R() * 0.16})`; g.lineWidth = 0.5 + R() * 2.2;
-    g.beginPath(); g.moveTo(x, y);
-    for (let s = 0; s < 30; s++) { x += 18 + R() * 10; y += (R() - 0.4) * 22; g.lineTo(x, y); }
-    g.stroke();
-  }
-});
-const veneerTex = tex(256, 1024, 2, 8, (g, w, h) => {
-  const R = rng(21); g.fillStyle = '#c4834d'; g.fillRect(0, 0, w, h);
-  for (let x = 0; x < w; x++) { const k = 0.9 + 0.08 * Math.sin(x * 0.21 + Math.sin(x * 0.05) * 3) + (R() - 0.5) * 0.06; g.fillStyle = rgb(198, 134, 80, k); g.fillRect(x, 0, 1, h); }
-  for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(120,70,35,${0.05 + R() * 0.08})`; g.lineWidth = 1; const x0 = R() * w; g.beginPath(); g.moveTo(x0, 0); g.bezierCurveTo(x0 + 6, h / 3, x0 - 6, h * 2 / 3, x0, h); g.stroke(); }
-});
-const checkerTex = tex(512, 512, 4, 4, (g, w, h) => {
-  const R = rng(4), s = w / 8;
-  for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { const dark = (i + j) % 2; g.fillStyle = dark ? rgb(48, 47, 47, 0.9 + R() * 0.2) : rgb(232, 228, 220, 0.96 + R() * 0.04); g.fillRect(i * s, j * s, s, s); }
-  g.fillStyle = 'rgba(150,145,138,0.7)'; for (let i = 0; i <= 8; i++) { g.fillRect(i * s - 1, 0, 2, h); g.fillRect(0, i * s - 1, w, 2); }
-});
-const paverTex = tex(512, 512, 4, 4, (g, w, h) => {
-  const R = rng(8);
-  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = rgb(160, 156, 150, 0.92 + R() * 0.12); g.fillRect(i * 256, j * 256, 256, 256); }
-  speckle(g, w, h, 3000, R, 'rgba(60,60,60,A)', 0.1, 2);
-  g.fillStyle = 'rgba(70,70,70,0.7)'; for (let i = 0; i <= 2; i++) { g.fillRect(i * 256 - 2, 0, 4, h); g.fillRect(0, i * 256 - 2, w, 4); }
-});
-const tileTex = tex(512, 512, 4, 4, (g, w, h) => {
-  const R = rng(23);
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = rgb(214, 210, 203, 0.95 + R() * 0.07); g.fillRect(i * 128, j * 128, 128, 128); }
-  speckle(g, w, h, 2500, R, 'rgba(90,90,90,A)', 0.08, 2);
-  g.fillStyle = 'rgba(150,146,140,0.9)'; for (let i = 0; i <= 4; i++) { g.fillRect(i * 128 - 1.5, 0, 3, h); g.fillRect(0, i * 128 - 1.5, w, 3); }
-});
-const grassTex = tex(256, 256, 8, 8, (g, w, h) => { const R = rng(13); g.fillStyle = '#6f8a52'; g.fillRect(0, 0, w, h); speckle(g, w, h, 6000, R, 'rgba(40,60,25,A)', 0.3, 2); speckle(g, w, h, 3000, R, 'rgba(150,170,100,A)', 0.2, 2); });
-const concreteTex = tex(512, 512, 5, 5, (g, w, h) => { const R = rng(17); g.fillStyle = '#b9b6b0'; g.fillRect(0, 0, w, h); speckle(g, w, h, 6000, R, 'rgba(70,70,70,A)', 0.12, 2); g.fillStyle = 'rgba(80,80,80,0.5)'; g.fillRect(0, 0, w, 3); g.fillRect(0, 0, 3, h); });
-const rugTex = tex(512, 384, 0, 0, (g, w, h) => {
-  const R = rng(19); g.fillStyle = '#8c8174'; g.fillRect(0, 0, w, h); speckle(g, w, h, 8000, R, 'rgba(50,40,30,A)', 0.12, 2);
-  g.strokeStyle = '#4f4a44'; g.lineWidth = 18; g.strokeRect(22, 22, w - 44, h - 44);
-  g.strokeStyle = '#c4b6a2'; g.lineWidth = 3; g.strokeRect(40, 40, w - 80, h - 80);
-});
-const cooktopTex = tex(256, 480, 0, 0, (g, w, h) => {
-  g.fillStyle = '#141516'; g.fillRect(0, 0, w, h);
-  [[w / 2, 70], [w / 2, 190]].forEach(([x, y]) => {
-    g.strokeStyle = '#3c3e41'; g.lineWidth = 9;
-    for (let a = 0; a < 4; a++) { g.beginPath(); g.moveTo(x - 80, y - 50 + a * 33); g.lineTo(x + 80, y - 50 + a * 33); g.stroke(); }
-    g.beginPath(); g.moveTo(x - 80, y - 50); g.lineTo(x - 80, y + 50); g.moveTo(x + 80, y - 50); g.lineTo(x + 80, y + 50); g.stroke();
-    g.fillStyle = '#26282b'; g.beginPath(); g.arc(x, y, 22, 0, Math.PI * 2); g.fill();
-  });
-  g.strokeStyle = '#5a5d61'; g.lineWidth = 2;
-  [[w / 2 - 40, 330, 44], [w / 2 + 45, 400, 34]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(x, y, r - 8, 0, Math.PI * 2); g.stroke(); });
-});
-
 // ---------- Materials ----------
 function std(color, rough, extra) { return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: 0 }, extra || {})); }
 const M = {
   plaster: std(0xf2efe9, 0.95),
   ceiling: std(0xf7f6f3, 0.95),
   trim: std(0xf8f7f3, 0.6),
-  oak: std(0xffffff, 0.55, { map: oakTex }),
-  brick: std(0xffffff, 0.95, { map: brickTex }),
-  stone: std(0xffffff, 0.92, { map: stoneTex }),
+  oak: std(0xc49a6c, 0.55),
+  brick: std(0x98563f, 0.95),
+  stone: std(0x77543f, 0.92),
   stoneTrim: std(0x5f4335, 0.85),
-  checker: std(0xffffff, 0.35, { map: checkerTex }),
-  marble: std(0xffffff, 0.22, { map: marbleTex }),
-  veneer: std(0xffffff, 0.5, { map: veneerTex }),
+  checker: std(0xbab6ae, 0.35),
+  marble: std(0xebe9e5, 0.22),
+  veneer: std(0xc68a55, 0.5),
   cab: std(0xf2f0ea, 0.45),
   cabBody: std(0xd6d2ca, 0.6),
   blue: std(0x2f4f8f, 0.5),
@@ -478,16 +367,16 @@ const M = {
   linen: std(0xcfc4b1, 0.95),
   leather: std(0x7a4a2c, 0.6),
   darkWood: std(0x4a3426, 0.55),
-  rug: std(0xffffff, 1.0, { map: rugTex }),
-  tile: std(0xffffff, 0.35, { map: tileTex }),
-  paver: std(0xffffff, 0.8, { map: paverTex }),
-  grass: std(0xffffff, 1.0, { map: grassTex }),
-  concrete: std(0xffffff, 0.95, { map: concreteTex }),
+  rug: std(0x8f8578, 1.0),
+  tile: std(0xd9d5ce, 0.35),
+  paver: std(0xa3a09a, 0.8),
+  grass: std(0x7a9360, 1.0),
+  concrete: std(0xbfbcb6, 0.95),
   asphalt: std(0x45474a, 0.95),
   steelPaint: std(0x2c2f33, 0.55),
   iron: std(0x1d1e20, 0.5),
   basement: std(0x6b6863, 1.0),
-  cooktop: std(0xffffff, 0.15, { map: cooktopTex }),
+  cooktop: std(0x18191b, 0.15),
   leaf: std(0x58784a, 0.9),
   pot: std(0xb9a48b, 0.8),
   lampShade: new THREE.MeshStandardMaterial({ color: 0xf2e6cf, emissive: 0xffd9a0, emissiveIntensity: 0.35, roughness: 0.9 }),
@@ -1553,14 +1442,13 @@ function orbitPose(name, lv) {
 }
 const EYE = 5.3;
 let mode = 'orbit', level = 'first', walkLv = 'first', yaw = 0, pitch = 0, flight = null, activeView = 'aerial', lastOverview = 'aerial';
-const tCeil = document.getElementById('tCeil');
 
 function setCut(abs) {
   cutPlane.constant = abs;
   earthCap.visible = abs < GRADE_R - 0.2; earthCap.position.y = abs - 0.02;
   invalidate(true);
 }
-function setCeiling(on) { G.ceiling.visible = on; tCeil.checked = on; invalidate(true); }
+function setCeiling(on) { G.ceiling.visible = on; invalidate(true); }   // on inside, off in the overview
 
 function quatLook(pos, target) { const o = new THREE.Object3D(); o.position.copy(pos); o.lookAt(target); return o.quaternion.clone(); }
 function quatYawPitch(y, p) { return new THREE.Quaternion().setFromEuler(new THREE.Euler(p, y, 0, 'YXZ')); }
@@ -1672,7 +1560,6 @@ window.addEventListener('keydown', e => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if (mode !== 'walk') return;
   const k = e.key.toLowerCase(); keys[k] = true;
-  if (k === 'g' && !e.repeat) setGhost(!tGhost.checked);
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -1701,7 +1588,7 @@ document.querySelectorAll('#pad button').forEach(b => {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => { pad[k] = false; }));
 });
 function blocked(x, z) {
-  if (tGhost.checked || !COL[walkLv]) return false;   // outside: no walls to bump into
+  if (!COL[walkLv]) return false;   // outside: no walls to bump into
   const r = 0.75, [bx0, bx1, bz0, bz1] = LEVELS[walkLv].bounds;
   if (x < bx0 + r || x > bx1 - r || z < bz0 + r || z > bz1 - 0.2) {
     // on the first floor, allow standing inside the front door reveal
@@ -1763,11 +1650,8 @@ TAGS.forEach(d => {
   else el.style.cursor = 'default';
   tagLayer.appendChild(el); d.el = el; d.vec = new THREE.Vector3(...d.p);
 });
-const tTags = document.getElementById('tTags'), tFurn = document.getElementById('tFurn'), tExt = document.getElementById('tExt');
-const tGhost = document.getElementById('tGhost'), ghostState = document.getElementById('ghostState');
-function setGhost(on) { tGhost.checked = on; ghostState.textContent = on ? 'walking through walls' : 'walls solid'; }
-tGhost.addEventListener('change', () => setGhost(tGhost.checked));
-function updateTagsVisibility() { tagLayer.hidden = !tTags.checked || mode !== 'orbit' || level === 'house'; occDirty = true; }
+const tFurn = document.getElementById('tFurn');
+function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level === 'house'; occDirty = true; }
 const tmpV = new THREE.Vector3(), ray = new THREE.Raycaster();
 // hide a tag when solid geometry below the section cut stands between it and the camera (run once the camera settles)
 function updateOcclusion() {
@@ -1791,24 +1675,7 @@ function placeTags(w, h) {
 }
 
 // ---------- Panel wiring ----------
-tTags.addEventListener('change', () => { updateTagsVisibility(); invalidate(); });
-// Simple flat colors by default; the procedural wood, brick, stone and tile textures are optional
-const tTex = document.getElementById('tTex');
-const TEXTURED = [[M.oak, 0xc49a6c], [M.brick, 0x98563f], [M.stone, 0x77543f], [M.checker, 0xbab6ae], [M.marble, 0xebe9e5], [M.veneer, 0xc68a55],
-  [M.paver, 0xa3a09a], [M.grass, 0x7a9360], [M.concrete, 0xbfbcb6], [M.rug, 0x8f8578], [M.tile, 0xd9d5ce], [M.cooktop, 0x18191b]].map(([m, c]) => ({ m, c, map: m.map }));
-const tEdge = document.getElementById('tEdge');
-function setOutlines(on) { edgeMat.visible = on; tEdge.checked = on; invalidate(); }
-tEdge.addEventListener('change', () => { setOutlines(tEdge.checked); try { localStorage.setItem('modelOutlines', tEdge.checked ? '1' : '0'); } catch (e) {} });
-{ let pref = null; try { pref = localStorage.getItem('modelOutlines'); } catch (e) {} setOutlines(pref !== '0'); }
-function setDetailed(on) {
-  TEXTURED.forEach(({ m, c, map }) => { m.map = on ? map : null; m.color.setHex(on ? 0xffffff : c); m.needsUpdate = true; });
-  tTex.checked = on; invalidate(true);
-}
-tTex.addEventListener('change', () => { setDetailed(tTex.checked); try { localStorage.setItem('bsTextures', tTex.checked ? '1' : '0'); } catch (e) {} });
-{ let pref = null; try { pref = localStorage.getItem('bsTextures'); } catch (e) {} setDetailed(pref === '1'); }
 tFurn.addEventListener('change', () => { G.furniture.visible = tFurn.checked; invalidate(true); });
-tExt.addEventListener('change', () => { G.exterior.visible = tExt.checked; invalidate(true); });
-tCeil.addEventListener('change', () => { G.ceiling.visible = tCeil.checked; invalidate(true); });
 const layers = document.getElementById('layers'), collapseBtn = document.getElementById('collapseBtn'), layersBtn = document.getElementById('layersBtn');
 function setLayersOpen(open) {
   const narrow = window.matchMedia('(max-width: 760px)').matches;
@@ -1821,7 +1688,7 @@ layersBtn.addEventListener('click', () => setLayersOpen(layers.hidden));
 {
   let pref = null; try { pref = localStorage.getItem('bsLayers'); } catch (e) {}
   const narrow = window.matchMedia('(max-width: 760px)').matches;
-  setLayersOpen(narrow ? false : pref !== '0');
+  setLayersOpen(narrow ? false : pref === '1');
 }
 
 // ================= GUIDED WALKTHROUGH =================
