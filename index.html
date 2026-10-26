@@ -484,11 +484,6 @@ function leaf(hx, hz, L, ang, y0, h, mat) {
 }
 // Plumbing fixtures and fitted pieces: built facing +z at the origin, then placed
 function fx(x, y, z, rotY, build, parent) { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rotY; (parent || G.structure).add(g); build(g); return g; }
-function toilet(g) {
-  B(-0.7, 0.7, 1.2, 2.55, -0.05, 0.38, M.porcelain, { parent: g });                       // wall-hung carrier / tank
-  const bowl = addMesh(new THREE.CylinderGeometry(0.62, 0.5, 0.9, 24), M.porcelain, g); bowl.scale.set(1, 1, 1.45); bowl.position.set(0, 0.95, 1.15);
-  const seat = addMesh(new THREE.CylinderGeometry(0.65, 0.65, 0.07, 24), M.porcelain, g); seat.scale.set(1, 1, 1.45); seat.position.set(0, 1.43, 1.15);
-}
 function wallToilet(g) {   // wall-hung bowl on an in-wall carrier, seat at 1'-4", flush plate at 3'-0"
   B(-0.45, 0.45, 0.55, 1.25, 0, 0.35, M.porcelain, { parent: g });
   const bowl = addMesh(new THREE.CylinderGeometry(0.62, 0.5, 0.8, 24), M.porcelain, g); bowl.scale.set(1, 1, 1.45); bowl.position.set(0, 0.88, 1.15);
@@ -1053,8 +1048,8 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   wl(19.0, XR, 15.21, 25.05);
   wl(3.83, 4.33, 16.52, 31.86); wl(XL, 4.33, 16.52, 17.02); wl(XL, 0.81, 31.45, 31.86); wl(3.56, 4.33, 31.45, 31.86);   // cellar stair enclosure
   wl(XL, 1.75, 39.46, ZF); wl(5.66, 7.83, 39.46, ZF);                                                                  // entry vestibule returns
-  head(0.81, 3.56, 31.45, 31.86, 6.9); head(7.83, 8.25, 17.05, 19.71, 8.0); head(7.83, 8.25, 21.92, 25.42); head(7.83, 8.25, 31.86, 35.61);
-  head(7.83, 8.25, ZR, 12.92); head(13.41, 15.91, 19.88, 20.30, 7.05);
+  head(0.81, 3.56, 31.45, 31.86, 8.0); head(7.83, 8.25, 17.05, 19.71, 8.0); head(7.83, 8.25, 21.92, 25.42, 8.0); head(7.83, 8.25, 31.86, 35.61, 8.0);
+  head(7.83, 8.25, ZR, 12.92, 8.0); head(13.41, 15.91, 19.88, 20.30, 7.05);
   // closets under the stair from the first floor; the partition follows the stair soffit
   {
     const r = -BSMT / 14, t = 0.781, zTop = 12.1, soff = z => -((zTop - z) / t) * r - 1.0;
@@ -1063,14 +1058,16 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     [[4.6, 8.25, soff(8.25) - 0.25], [8.55, 12.25, Math.min(y0 + 6.8, soff(12.25) - 0.25)], [12.55, 16.4, y0 + 6.8]].forEach(([a, b, top]) => B(3.73, 3.76, y0 + 0.05, top, a, b, M.trim));
     C.push([XL, 3.76, 4.4, 16.52], [XL, 3.6, ZR, 4.4]);
   }
-  // family room sliding glass panels to the hall (B006)
-  B(7.83, 8.25, y0 + 6.9, y0 + 7.0, ZR, 12.92, M.frame);
-  for (let i = 0; i <= 4; i++) { const z = ZR + i * (12.92 - ZR) / 4; B(7.93, 8.15, y0, y0 + 6.9, z - 0.08, z + 0.08, M.frame); }
-  B(8.0, 8.06, y0, y0 + 6.9, ZR, 10.02, M.glass, { parent: G.glass, shadow: false });   // last panel slid open
-  C.push([7.83, 8.25, ZR, 10.02]);
-  // doors: B002 to the cellar stair, B004 storage (open); B005 bath and B003 gym are pocket doors, shown open (in the wall); sauna glass door
-  leaf(0.9, 31.86, 2.6, Math.PI / 2, y0, 6.85, M.trim);
-  leaf(8.25, 22.0, 3.3, 0.15, y0, 6.95, M.trim);
+  // doors per the door schedule (A-801.00), all 8'-0": B006 family room, full-width painted wood barn panels on the hall
+  // side (one slid over its neighbour); B004 storage, barn door parked open to the south; B002 cellar stair, swing;
+  // B003 gym and B005 bath, pocket doors shown open (in the wall); sauna door below
+  { const pw = (12.92 - ZR) / 4;
+    B(7.56, 7.83, y0 + 8.0, y0 + 8.15, ZR, 12.92, M.steel);
+    for (let i = 0; i < 3; i++) B(7.68, 7.79, y0 + 0.05, y0 + 8.0, ZR + i * pw + 0.01, ZR + (i + 1) * pw - 0.01, M.trim);
+    B(7.56, 7.67, y0 + 0.05, y0 + 8.0, ZR + 2 * pw + 0.01, ZR + 3 * pw - 0.01, M.trim);
+    C.push([7.56, 8.25, ZR, ZR + 3 * pw]); }
+  B(7.68, 7.79, y0 + 0.05, y0 + 8.0, 25.35, 29.0, M.trim); B(7.68, 7.83, y0 + 8.0, y0 + 8.15, 21.9, 29.1, M.steel); C.push([7.66, 7.83, 25.35, 29.0]);
+  leaf(0.9, 31.86, 2.6, Math.PI / 2, y0, 7.95, M.trim);
   // sauna door: wood frame with a glass panel, 7'-0", hinged on the east jamb, opening into the bath (shown closed)
   B(13.45, 13.86, y0, y0 + 7.0, 19.9, 20.05, M.veneer); B(15.46, 15.87, y0, y0 + 7.0, 19.9, 20.05, M.veneer);
   B(13.86, 15.46, y0 + 6.59, y0 + 7.0, 19.9, 20.05, M.veneer); B(13.86, 15.46, y0, y0 + 0.82, 19.9, 20.05, M.veneer);
@@ -1209,7 +1206,7 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   wl(14.16, 14.58, 32.10, 34.10); wl(14.58, 16.12, 32.10, 32.51); wl(18.79, 19.16, 32.10, 32.51); wl(9.83, 10.25, 34.10, 40.02);
   B(1.20, 3.87, CEL + 6.8, top, 32.10, 32.51, M.plaster, { poche: true }); B(16.12, 18.79, CEL + 6.8, top, 32.10, 32.51, M.plaster, { poche: true });
   leaf(1.25, 32.51, 2.55, Math.PI / 2, CEL, 6.75, M.trim); leaf(18.74, 32.51, 2.55, Math.PI / 2, CEL, 6.75, M.trim);
-  leaf(18.1, 41.95, 2.7, Math.PI / 2, CEL, 6.55, M.trim);
+  leaf(18.1, 40.02, 2.7, -Math.PI / 2, CEL, 6.55, M.frame);   // C003, uPVC, swings into the storage room
   B(5.83, 14.16, CEL, CEL + 2.9, 32.75, 33.68, M.cab); B(5.83, 14.16, CEL + 2.9, CEL + 3.0, 32.7, 33.68, M.concrete);
   B(8.9, 10.9, CEL + 3.0, CEL + 3.02, 32.9, 33.5, M.steel); cyl(9.9, 33.55, CEL + 3.0, CEL + 3.9, 0.04, M.steel);
   C.push([5.83, 14.16, 32.7, 33.68]);
@@ -1254,12 +1251,11 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   wl(7.62, 14.37, 21.54, 22.13); wl(16.87, XR, 21.54, 22.13);
   wl(7.62, 8.20, 24.73, 27.71); wl(13.62, 14.21, 24.73, 28.30); wl(7.33, 14.21, 27.71, 28.30);
   wl(XL, 4.33, 27.71, 28.30);
-  // door heads: 205 guest room, 204 guest bath (8'-0" pocket door), 201/202 pocket doors to the passage, 203 bath (8'-0" pocket
-  // door, design deck p.5), 203a WC, 200 bedroom
-  head(7.62, 8.20, 6.92, 9.92); head(7.62, 8.20, 13.25, 15.75, 8.0); head(7.62, 8.20, 22.13, 24.73); head(13.62, 14.21, 22.13, 24.73);
-  head(14.37, 16.87, 21.54, 22.13, 8.0); head(14.58, 16.91, 16.13, 16.54); head(4.33, 7.33, 27.71, 28.30);
-  leaf(4.4, 28.3, 2.85, Math.PI / 2, y0, 6.95, M.trim);
-  leaf(14.65, 16.13, 2.2, -Math.PI / 2, y0, 6.95, M.trim);
+  // door heads (door schedule A-801.00, all 8'-0"): pocket doors 205 guest room, 204 guest bath, 201/202 laundry,
+  // 203 primary bath and 200 primary bedroom (shown open, in the wall); 203a WC swings
+  head(7.62, 8.20, 6.92, 9.92, 8.0); head(7.62, 8.20, 13.25, 15.75, 8.0); head(7.62, 8.20, 22.13, 24.73, 8.0); head(13.62, 14.21, 22.13, 24.73, 8.0);
+  head(14.37, 16.87, 21.54, 22.13, 8.0); head(14.58, 16.91, 16.13, 16.54, 8.0); head(4.33, 7.33, 27.71, 28.30, 8.0);
+  leaf(14.65, 16.13, 2.2, -Math.PI / 2, y0, 7.95, M.trim);
   // stair opening: 3'-6" guard; roof-hatch ladder beyond
   B(3.62, 3.8, y0, y0 + 3.5, 14.52, 24.98, M.trim, { poche: true }); B(XL, 3.8, y0, y0 + 3.5, 24.8, 24.98, M.trim, { poche: true });
   B(3.6, 3.82, y0 + 3.5, y0 + 3.62, 14.52, 24.98, M.veneer); B(XL, 3.82, y0 + 3.5, y0 + 3.62, 24.8, 25.0, M.veneer);
@@ -1271,21 +1267,24 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     C.push([1.6, 3.4, 25.0, 27.5]);
   }
   // guest bath: toilet, vanity, shower
-  fx(9.4, y0, 10.71, 0, toilet);
+  fx(9.4, y0, 10.71, 0, wallToilet);
   fx(13.79, y0, 14.78, -Math.PI / 2, g => vanity(g, 2.28, 1.65));   // 2'-3" x 1'-8" (design deck p.4)
   B(12.12, 12.17, y0, y0 + 7.0, 10.71, 13.21, M.glass, { parent: G.glass, shadow: false }); cyl(15.4, 12.0, y0 + 6.6, y0 + 6.7, 0.3, M.steel);
   // primary WC: wall-hung toilet, storage cabinet over a shelf in the 1'-2" alcove (design deck p.5)
   fx(19.04, y0, 14.81, -Math.PI / 2, wallToilet);
   B(16.5, 19.0, y0 + 4.7, y0 + 8.9, 12.46, 13.6, M.cab); B(16.5, 19.0, y0 + 3.6, y0 + 3.7, 12.46, 13.5, M.cab);
-  // primary bath (design deck p.5): freestanding oval tub with a floor-mounted filler, open to the shower; fixed glass
-  // panel and hinged glass door on the shower's east side; 5'-0" double vanity
-  oval(9.56, y0, 19.06, 1.26, 2.43, 1.9, M.porcelain); oval(9.56, y0 + 1.85, 19.06, 1.05, 2.2, 0.06, M.mirror);
-  cyl(8.52, 16.8, y0, y0 + 3.0, 0.05, M.steel); B(8.48, 8.95, y0 + 2.92, y0 + 3.02, 16.77, 16.83, M.steel);
+  // primary bath (design deck p.5): 5'-0" x 2'-8" alcove tub between the north and south walls, apron toward the shower,
+  // spout and valve on the north end wall; fixed glass panel and hinged glass door on the shower's east side; 5'-0" vanity
+  { const x0 = 8.2, x1 = 10.87, z0 = 16.54, z1 = 21.54, h = y0 + 1.67, r = 0.3, e = 0.45;
+    B(x0, x1, y0, y0 + 0.4, z0, z1, M.porcelain); B(x1 - 0.25, x1, y0, h, z0, z1, M.porcelain);
+    B(x0, x0 + r, y0, h, z0, z1, M.porcelain); B(x0 + r, x1 - 0.25, y0, h, z0, z0 + e, M.porcelain); B(x0 + r, x1 - 0.25, y0, h, z1 - e, z1, M.porcelain);
+    B(x0 + r, x1 - 0.25, y0 + 1.3, y0 + 1.31, z0 + e, z1 - e, M.mirror, { shadow: false });
+    B(9.45, 9.65, y0 + 2.15, y0 + 2.27, z0, z0 + 0.42, M.steel); B(9.35, 9.75, y0 + 2.9, y0 + 3.3, z0, z0 + 0.04, M.steel); }
   B(13.6, 13.65, y0, y0 + 7.0, 16.54, 19.04, M.glass, { parent: G.glass, shadow: false });
   B(13.6, 13.65, y0, y0 + 7.0, 19.09, 21.5, M.glass, { parent: G.glass, shadow: false }); B(13.67, 13.7, y0 + 3.0, y0 + 4.2, 19.25, 19.3, M.steel);
   cyl(12.2, 17.1, y0 + 6.6, y0 + 6.7, 0.35, M.steel);
   fx(19.04, y0, 19.04, -Math.PI / 2, g => vanity(g, 5.0, 1.68, [-1.15, 1.15]));
-  C.push([8.5, 11.0, 16.6, 21.5], [17.3, 19.04, 16.8, 21.3]);
+  C.push([8.2, 10.87, 16.54, 21.54], [17.3, 19.04, 16.8, 21.3]);
   // laundry alcove: counter + stacked washer/dryer
   B(8.25, 10.9, y0, y0 + 3.0, 25.7, 27.71, M.cab); B(8.25, 10.9, y0 + 2.9, y0 + 3.0, 25.6, 27.71, M.marble);
   B(10.95, 13.55, y0, y0 + 6.4, 25.2, 27.7, M.porcelain);
