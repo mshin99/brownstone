@@ -1724,7 +1724,9 @@ function planPath(tx, tz) {
     }
     if (best < 0) return null; g = best; tx = cx(g); tz = cz(g);
   }
-  free[s] = 1;
+  { const si = s % nx, sk = Math.floor(s / nx);   // starting inside a margin: open the cells around the walker so a route can leave it
+    for (let k = Math.max(0, sk - 2); k <= Math.min(nz - 1, sk + 2); k++) for (let i = Math.max(0, si - 2); i <= Math.min(nx - 1, si + 2); i++) if (blocked(p.x, p.z)) free[k * nx + i] = 1;
+    free[s] = 1; }
   const cost = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), heap = [];
   const est = n => Math.hypot(n % nx - g % nx, Math.floor(n / nx) - Math.floor(g / nx));
   const push = (n, f) => { heap.push([f, n]); let i = heap.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] <= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
@@ -1760,12 +1762,12 @@ renderer.domElement.addEventListener('pointermove', e => {
     return;
   }
   if (e.pointerId !== drag.id) return;
-  if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 5) { drag.moved = true; walkPath = null; hideRing(); }
+  if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 10) drag.moved = true;   // a wobbly click is still a click; dragging looks around without stopping a walk
   if (mode === 'tour') {   // look around without leaving the route; resets when playback changes
     tour.lookYaw += (e.clientX - drag.x) * 0.0042; tour.lookPitch += (e.clientY - drag.y) * 0.0042;
     drag.x = e.clientX; drag.y = e.clientY; applyTourPose(); return;
   }
-  if (mode !== 'walk') return;
+  if (mode !== 'walk' || !drag.moved) return;
   yaw += (e.clientX - drag.x) * 0.0042; pitch += (e.clientY - drag.y) * 0.0042;
   pitch = Math.max(-1.2, Math.min(1.2, pitch)); drag.x = e.clientX; drag.y = e.clientY; invalidate();
 });
@@ -1816,16 +1818,17 @@ function walkStep(dt) {
   if (f || s) {
     const sp = (fast ? 11 : 5.5) * dt;
     const dx = (-Math.sin(yaw) * f + Math.cos(yaw) * s) * sp, dz = (-Math.cos(yaw) * f - Math.sin(yaw) * s) * sp;
-    if (!blocked(p.x + dx, p.z)) p.x += dx;
-    if (!blocked(p.x, p.z + dz)) p.z += dz;
+    const inside = blocked(p.x, p.z);   // e.g. furniture switched back on around you: let the walker step out
+    if (inside || !blocked(p.x + dx, p.z)) p.x += dx;
+    if (inside || !blocked(p.x, p.z + dz)) p.z += dz;
   } else if (walkPath && !flight) {   // glide along the waypoints, easing in at the end, sliding along walls
     const t = walkPath[0], last = walkPath.length === 1, dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz);
     if (d < (last ? 0.04 : 0.25)) { walkPath.shift(); if (!walkPath.length) { walkPath = null; hideRing(); } else gliding = true; }
     else {
       const sp = Math.min(d, (fast ? 11 : 5.5) * dt * (last ? Math.min(1, 0.3 + d / 1.5) : 1)), mx = dx / d * sp, mz = dz / d * sp;
-      const x0 = p.x, z0 = p.z;
-      if (!blocked(p.x + mx, p.z)) p.x += mx;
-      if (!blocked(p.x, p.z + mz)) p.z += mz;
+      const x0 = p.x, z0 = p.z, inside = blocked(p.x, p.z);
+      if (inside || !blocked(p.x + mx, p.z)) p.x += mx;
+      if (inside || !blocked(p.x, p.z + mz)) p.z += mz;
       if (Math.hypot(p.x - x0, p.z - z0) < sp * 0.25) { walkPath = null; hideRing(); }   // walked into something: stop there
       else gliding = true;
     }
