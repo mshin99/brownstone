@@ -239,6 +239,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <button class="v" data-view="aerial" aria-pressed="true">Street side</button>
     <button class="v" data-view="garden" aria-pressed="false">Garden side</button>
     <button class="v" data-view="plan" aria-pressed="false">Plan</button>
+    <button class="v" data-view="interior" aria-pressed="false" title="Walk inside, at eye level">Interior</button>
   </div>
   <span class="sep" aria-hidden="true"></span>
   <div class="group" role="group" aria-label="Guided walkthrough">
@@ -1551,7 +1552,15 @@ function updatePressed() {
   document.querySelectorAll('button.v[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === activeView)));
   document.querySelectorAll('button.v[data-lv]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lv === level)));
 }
+// Interior: step inside at eye level in the level's main room (the whole-house view goes to the living room)
+const INTERIOR = { cellar: 'Cellar', basement: 'Family room', first: 'Living', second: 'Primary bedroom', house: 'Living' };
+function goInterior() {
+  const lv = level === 'house' ? 'first' : level;
+  const r = ROOMS.find(q => q.lv === lv && q.name === INTERIOR[level]) || ROOMS.find(q => q.lv === lv);
+  if (r) jumpTo(r);
+}
 function go(name) {
+  if (name === 'interior') { if (!(mode === 'walk' && walkLv === (level === 'house' ? 'first' : level))) goInterior(); return; }
   const L = LEVELS[level], ov = OVERVIEWS.includes(name);
   if (!ov && !L.walks[name]) return;
   activeView = name; updatePressed();
@@ -1604,7 +1613,7 @@ const roomFor = (lv, name) => ROOMS.find(r => r.lv === lv && (r.name === name ||
 function jumpTo(r) {
   if (mode === 'tour') { tour.playing = false; tourbar.hidden = true; viewbar.hidden = false; }
   if (r.lv !== level) setLevel(r.lv, true);
-  activeView = null; updatePressed();
+  activeView = 'interior'; updatePressed();
   mode = 'walk'; walkLv = r.lv; walkFloor = r.f; controls.enabled = false; walkPath = null;
   setCeiling(true); setCut(1000); useRoomLights(r.lv === 'house' ? null : r.lv);
   yaw = r.yaw; pitch = r.pitch;
@@ -1652,7 +1661,7 @@ function setLevel(lv, quiet) {
   document.getElementById('lvRooms').innerHTML = L.rooms; document.getElementById('lvDims').innerHTML = L.dims;
   document.getElementById('lvRoomsHead').textContent = lv === 'house' ? 'Levels (finished floor)' : 'Room schedule';
   if (quiet) { updatePressed(); return; }
-  go(lastOverview);
+  if (activeView === 'interior') goInterior(); else go(lastOverview);   // stay inside when changing floors
 }
 document.querySelectorAll('button.v[data-lv]').forEach(b => b.addEventListener('click', () => setLevel(b.dataset.lv)));
 document.querySelectorAll('button.v[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
