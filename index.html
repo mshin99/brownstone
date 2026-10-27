@@ -208,7 +208,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </div>
 </aside>
 
-<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to walk &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> wide angle &middot; <kbd>F</kbd> furniture</div>
+<div class="overlay card walkhelp" id="walkhelp" hidden>Drag to look &middot; click the floor to walk there &middot; scroll to step &middot; arrows or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &middot; <kbd>Shift</kbd> faster &middot; <kbd>V</kbd> lens &middot; <kbd>F</kbd> furniture</div>
 
 <div class="overlay card pad" id="pad" hidden>
   <button class="ic up" data-k="f" aria-label="Walk forward">&uarr;</button>
@@ -221,7 +221,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <div class="group" role="group" aria-label="Go to a room" id="walkGroup">
     <label class="label-xs" for="roomSel">Go to</label>
     <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
-    <button class="v" id="wideBtn" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
+    <button class="v" id="wideBtn" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
     <button class="v" id="furnBtn" aria-pressed="true" title="Show illustrative furniture (F)">Furniture</button>
   </div>
   <span class="sep" aria-hidden="true" id="walkSep"></span>
@@ -270,7 +270,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
         <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
       </select>
-      <button class="v" id="tWide" aria-pressed="false" title="Wide-angle lens (V)">Wide angle</button>
+      <button class="v" id="tWide" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
       <button class="v" id="tFurn" aria-pressed="true" title="Show illustrative furniture (F)">Furniture</button>
     </div>
     <div class="tourside">
@@ -1564,7 +1564,7 @@ function go(name) {
     fly(pos, quatLook(pos, tgt), () => { controls.target.copy(tgt); controls.enabled = true; controls.update(); });
   } else {
     const w = L.walks[name];
-    mode = 'walk'; walkLv = level; walkFloor = L.floor; controls.enabled = false;
+    mode = 'walk'; walkLv = level; walkFloor = L.floor; controls.enabled = false; walkPath = null;
     setCeiling(true); setCut(1000);
     useRoomLights(walkLv);
     yaw = w.yaw; pitch = w.pitch;
@@ -1605,7 +1605,7 @@ function jumpTo(r) {
   if (mode === 'tour') { tour.playing = false; tourbar.hidden = true; viewbar.hidden = false; }
   if (r.lv !== level) setLevel(r.lv, true);
   activeView = null; updatePressed();
-  mode = 'walk'; walkLv = r.lv; walkFloor = r.f; controls.enabled = false;
+  mode = 'walk'; walkLv = r.lv; walkFloor = r.f; controls.enabled = false; walkPath = null;
   setCeiling(true); setCut(1000); useRoomLights(r.lv === 'house' ? null : r.lv);
   yaw = r.yaw; pitch = r.pitch;
   fly(new THREE.Vector3(r.x, r.f + EYE, r.z), quatYawPitch(yaw, pitch), () => {});
@@ -1617,18 +1617,21 @@ function jumpTo(r) {
   renderer.domElement.focus({ preventScroll: true });
 }
 roomSel.addEventListener('change', () => { if (roomSel.value !== '') jumpTo(ROOMS[+roomSel.value]); });
-// ---------- Wide-angle lens for first-person views ----------
-let wide = false;
-function setWide(on) {
-  wide = on;
-  ['wideBtn', 'tWide'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
+// ---------- Lens for first-person views: the button (and V) cycles normal -> wide -> ultra wide ----------
+// v: base vertical field of view; h: minimum horizontal field (kept in portrait windows); max: vertical cap
+const LENSES = [{ name: 'Normal lens', v: 62, h: 78, max: 100 }, { name: 'Wide angle', v: 88, h: 112, max: 125 }, { name: 'Ultra wide', v: 104, h: 136, max: 145 }];
+let lens = 0;
+function setLens(i) {
+  lens = i;
+  ['wideBtn', 'tWide'].forEach(id => { const b = document.getElementById(id); b.setAttribute('aria-pressed', String(i > 0)); b.textContent = LENSES[i].name; });
   updateFov(); invalidate();
-  try { localStorage.setItem('modelWide', on ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem('modelWide', String(i)); } catch (e) {}
 }
-['wideBtn', 'tWide'].forEach(id => document.getElementById(id).addEventListener('click', () => setWide(!wide)));
+const nextLens = () => setLens((lens + 1) % LENSES.length);
+['wideBtn', 'tWide'].forEach(id => document.getElementById(id).addEventListener('click', nextLens));
 window.addEventListener('keydown', e => {
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-  if (e.key.toLowerCase() === 'v' && !e.repeat) setWide(!wide);
+  if (e.key.toLowerCase() === 'v' && !e.repeat) nextLens();
 });
 // ---------- Furniture (illustrative; also collides when walking) ----------
 function setFurniture(on) {
@@ -1655,23 +1658,100 @@ document.querySelectorAll('button.v[data-lv]').forEach(b => b.addEventListener('
 document.querySelectorAll('button.v[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
 
 // ---------- Walk controls ----------
-const keys = {};
+// Mouse only: drag to look, click the floor to walk there (a ring marks the spot), scroll to step forward / back.
+// Keys: arrows, or W A S D read by key position (e.code), so the same four keys work on Dvorak and other layouts.
+const keys = {}, WALK_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+let fast = false, walkPath = null;   // walkPath: [{ x, z }, ...] waypoints from a click (routed) or a scroll step (straight)
 window.addEventListener('keydown', e => {
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if (mode !== 'walk') return;
-  const k = e.key.toLowerCase(); keys[k] = true;
-  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+  fast = e.shiftKey;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (WALK_KEYS.includes(e.code)) { keys[e.code] = true; e.preventDefault(); }
 });
-window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
-window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+window.addEventListener('keyup', e => { keys[e.code] = false; fast = e.shiftKey; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; fast = false; });
+// floor ring under the cursor / at the destination
+const walkRing = new THREE.Mesh(new THREE.RingGeometry(0.38, 0.52, 40), new THREE.MeshBasicMaterial({ color: 0x2f4f8f, transparent: true, opacity: 0.9 }));
+walkRing.rotation.x = -Math.PI / 2; walkRing.renderOrder = 5; walkRing.visible = false; scene.add(walkRing);
+function showRing(x, z) { walkRing.position.set(x, walkFloor + 0.03, z); walkRing.visible = true; invalidate(); }
+function hideRing() { if (walkRing.visible) { walkRing.visible = false; invalidate(); } }
+const walkRay = new THREE.Raycaster(), walkNdc = new THREE.Vector2(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), floorHit = new THREE.Vector3();
+// where the view ray through a screen point meets the walker's floor (null if it points up or too far)
+function floorPoint(cx, cy) {
+  const r = renderer.domElement.getBoundingClientRect();
+  walkNdc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  walkRay.setFromCamera(walkNdc, camera); walkRay.far = 60;
+  floorPlane.constant = -walkFloor;
+  if (!walkRay.ray.intersectPlane(floorPlane, floorHit) || floorHit.distanceTo(camera.position) > 45) return null;
+  return { x: floorHit.x, z: floorHit.z };
+}
+// click destination: the floor point, or just short of the first wall / fixture the ray hits on the way
+function clickTarget(cx, cy) {
+  const f = floorPoint(cx, cy);
+  const objs = [G.structure, G.kitchen]; if (G.furniture.visible) objs.push(G.furniture);
+  const hit = walkRay.intersectObjects(objs, true).find(h => h.object.isMesh && h.object.material !== M.glass && h.point.y > walkFloor + 0.15);
+  const p = camera.position;
+  if (hit && (!f || hit.distance < Math.hypot(f.x - p.x, walkFloor - p.y, f.z - p.z))) {
+    const dx = hit.point.x - p.x, dz = hit.point.z - p.z, d = Math.hypot(dx, dz);
+    if (d < 1.2) return null;
+    return { x: p.x + dx * (d - 1.0) / d, z: p.z + dz * (d - 1.0) / d };
+  }
+  return f;
+}
+// shortest walkable route on a 6" grid around walls and furniture (A*), pulled taut into straight runs
+function planPath(tx, tz) {
+  const p = camera.position, [bx0, bx1, bz0, bz1] = LEVELS[walkLv].bounds, h = 0.5;
+  const nx = Math.ceil((bx1 - bx0) / h), nz = Math.ceil((bz1 - bz0) / h), N = nx * nz;
+  const cx = n => bx0 + (n % nx + 0.5) * h, cz = n => bz0 + (Math.floor(n / nx) + 0.5) * h;
+  const idx = (x, z) => { const i = Math.floor((x - bx0) / h), k = Math.floor((z - bz0) / h); return i < 0 || k < 0 || i >= nx || k >= nz ? -1 : k * nx + i; };
+  const free = new Uint8Array(N); for (let n = 0; n < N; n++) free[n] = blocked(cx(n), cz(n)) ? 0 : 1;
+  const s = idx(p.x, p.z); let g = idx(tx, tz);
+  if (s < 0 || g < 0) return null;
+  if (!free[g]) {   // clicked into an obstacle's margin: aim for the nearest open cell
+    const gi = g % nx, gk = Math.floor(g / nx); let best = -1, bd = 1e9;
+    for (let k = Math.max(0, gk - 6); k <= Math.min(nz - 1, gk + 6); k++) for (let i = Math.max(0, gi - 6); i <= Math.min(nx - 1, gi + 6); i++) {
+      const d = (i - gi) ** 2 + (k - gk) ** 2; if (free[k * nx + i] && d < bd) { bd = d; best = k * nx + i; }
+    }
+    if (best < 0) return null; g = best; tx = cx(g); tz = cz(g);
+  }
+  free[s] = 1;
+  const cost = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), heap = [];
+  const est = n => Math.hypot(n % nx - g % nx, Math.floor(n / nx) - Math.floor(g / nx));
+  const push = (n, f) => { heap.push([f, n]); let i = heap.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] <= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top[1]; };
+  cost[s] = 0; push(s, est(s));
+  let found = s === g;
+  while (heap.length && !found) {
+    const n = pop(), i = n % nx, k = Math.floor(n / nx);
+    for (const [di, dk, c] of [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]]) {
+      const a = i + di, b = k + dk; if (a < 0 || b < 0 || a >= nx || b >= nz) continue;
+      const m = b * nx + a; if (!free[m] || (di && dk && (!free[k * nx + a] || !free[b * nx + i]))) continue;
+      const nc = cost[n] + c; if (nc < cost[m]) { cost[m] = nc; from[m] = n; if (m === g) { found = true; break; } push(m, nc + est(m)); }
+    }
+  }
+  if (!found) return null;
+  const pts = []; for (let n = g; n !== s && n >= 0; n = from[n]) pts.unshift({ x: cx(n), z: cz(n) });
+  const end = blocked(tx, tz) ? pts[pts.length - 1] || { x: cx(g), z: cz(g) } : { x: tx, z: tz };
+  if (pts.length) pts[pts.length - 1] = end; else pts.push(end);
+  const clear = (a, b) => { const n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.2); for (let j = 1; j <= n; j++) if (blocked(a.x + (b.x - a.x) * j / n, a.z + (b.z - a.z) * j / n)) return false; return true; };
+  const out = []; let cur = { x: p.x, z: p.z }, j = 0;
+  while (j < pts.length) { let far = j; for (let q = pts.length - 1; q > j; q--) if (clear(cur, pts[q])) { far = q; break; } cur = pts[far]; out.push(cur); j = far + 1; }
+  return out;
+}
 let drag = null;
 renderer.domElement.addEventListener('pointerdown', e => {
   if (mode !== 'walk' && mode !== 'tour') return;
-  flight = null; drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  flight = null; drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), id: e.pointerId, moved: false };
   renderer.domElement.setPointerCapture(e.pointerId);
 });
 renderer.domElement.addEventListener('pointermove', e => {
-  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag) {   // hover: preview where a click would take you
+    if (mode === 'walk' && e.pointerType === 'mouse' && !walkPath) { const f = floorPoint(e.clientX, e.clientY); if (f) showRing(f.x, f.z); else hideRing(); }
+    return;
+  }
+  if (e.pointerId !== drag.id) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 5) { drag.moved = true; walkPath = null; hideRing(); }
   if (mode === 'tour') {   // look around without leaving the route; resets when playback changes
     tour.lookYaw += (e.clientX - drag.x) * 0.0042; tour.lookPitch += (e.clientY - drag.y) * 0.0042;
     drag.x = e.clientX; drag.y = e.clientY; applyTourPose(); return;
@@ -1680,7 +1760,23 @@ renderer.domElement.addEventListener('pointermove', e => {
   yaw += (e.clientX - drag.x) * 0.0042; pitch += (e.clientY - drag.y) * 0.0042;
   pitch = Math.max(-1.2, Math.min(1.2, pitch)); drag.x = e.clientX; drag.y = e.clientY; invalidate();
 });
-['pointerup', 'pointercancel'].forEach(t => renderer.domElement.addEventListener(t, () => { drag = null; }));
+renderer.domElement.addEventListener('pointerup', e => {
+  if (drag && !drag.moved && mode === 'walk' && performance.now() - drag.t0 < 600) {
+    const t = clickTarget(e.clientX, e.clientY);
+    if (t) { walkPath = planPath(t.x, t.z) || [t]; const end = walkPath[walkPath.length - 1]; showRing(end.x, end.z); }
+  }
+  drag = null;
+});
+renderer.domElement.addEventListener('pointercancel', () => { drag = null; });
+renderer.domElement.addEventListener('pointerleave', () => { if (!walkPath) hideRing(); });
+renderer.domElement.addEventListener('wheel', e => {
+  if (mode !== 'walk') return;
+  e.preventDefault();
+  const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY, step = Math.max(-3, Math.min(3, -dy / 100 * 1.25));   // ~1'-3" a notch
+  const from = walkPath ? walkPath[walkPath.length - 1] : camera.position;
+  walkPath = [{ x: from.x - Math.sin(yaw) * step, z: from.z - Math.cos(yaw) * step }];
+  hideRing(); invalidate();
+}, { passive: false });
 const pad = {};
 document.querySelectorAll('#pad button').forEach(b => {
   const k = b.dataset.k;
@@ -1700,21 +1796,34 @@ function blocked(x, z) {
 }
 function walkStep(dt) {
   let f = 0, s = 0, turn = 0;
-  if (keys['w'] || keys['arrowup'] || pad.f) f += 1;
-  if (keys['s'] || keys['arrowdown'] || pad.b) f -= 1;
-  if (keys['a']) s -= 1; if (keys['d']) s += 1;
-  if (keys['arrowleft'] || pad.l) turn += 1; if (keys['arrowright'] || pad.r) turn -= 1;
+  if (keys.KeyW || keys.ArrowUp || pad.f) f += 1;
+  if (keys.KeyS || keys.ArrowDown || pad.b) f -= 1;
+  if (keys.KeyA) s -= 1; if (keys.KeyD) s += 1;
+  if (keys.ArrowLeft || pad.l) turn += 1; if (keys.ArrowRight || pad.r) turn -= 1;
   if (turn) yaw += turn * dt * 1.6;
+  const p = camera.position;
+  let gliding = false;
+  if (f || s || turn) { if (walkPath) { walkPath = null; hideRing(); } }
   if (f || s) {
-    const sp = (keys['shift'] ? 11 : 5.5) * dt;
+    const sp = (fast ? 11 : 5.5) * dt;
     const dx = (-Math.sin(yaw) * f + Math.cos(yaw) * s) * sp, dz = (-Math.cos(yaw) * f - Math.sin(yaw) * s) * sp;
-    const p = camera.position;
     if (!blocked(p.x + dx, p.z)) p.x += dx;
     if (!blocked(p.x, p.z + dz)) p.z += dz;
+  } else if (walkPath && !flight) {   // glide along the waypoints, easing in at the end, sliding along walls
+    const t = walkPath[0], last = walkPath.length === 1, dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz);
+    if (d < (last ? 0.04 : 0.25)) { walkPath.shift(); if (!walkPath.length) { walkPath = null; hideRing(); } else gliding = true; }
+    else {
+      const sp = Math.min(d, (fast ? 11 : 5.5) * dt * (last ? Math.min(1, 0.3 + d / 1.5) : 1)), mx = dx / d * sp, mz = dz / d * sp;
+      const x0 = p.x, z0 = p.z;
+      if (!blocked(p.x + mx, p.z)) p.x += mx;
+      if (!blocked(p.x, p.z + mz)) p.z += mz;
+      if (Math.hypot(p.x - x0, p.z - z0) < sp * 0.25) { walkPath = null; hideRing(); }   // walked into something: stop there
+      else gliding = true;
+    }
   }
-  if (f || s || turn || drag) flight = null;
+  if (f || s || turn || (drag && drag.moved)) flight = null;
   if (!flight) { camera.position.y = walkEye(); camera.quaternion.copy(quatYawPitch(yaw, pitch)); }
-  return !!(f || s || turn);
+  return !!(f || s || turn || gliding);
 }
 
 // ---------- Room tags ----------
@@ -2105,16 +2214,16 @@ function resize() {
 }
 // keep a usable horizontal field of view in portrait windows
 function updateFov() {
-  const first = mode !== 'orbit', base = first ? (wide ? 88 : 62) : 42, hMin = first ? (wide ? 112 : 78) : 48;   // wide: ~112 deg across
+  const first = mode !== 'orbit', ln = LENSES[lens], base = first ? ln.v : 42, hMin = first ? ln.h : 48;
   const need = 2 * Math.atan(Math.tan(hMin * Math.PI / 360) / camera.aspect) * 180 / Math.PI;
-  camera.fov = Math.min(first ? (wide ? 125 : 100) : 75, Math.max(base, need));
+  camera.fov = Math.min(first ? ln.max : 75, Math.max(base, need));
   camera.near = first ? 0.15 : 0.6; camera.far = first ? 260 : 450;
   camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(app); resize();
 
 // initial view: first floor from the street side (no animation)
-{ let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1') setWide(true); }
+{ let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1' || pref === '2') setLens(+pref); }
 { let pref = null; try { pref = localStorage.getItem('modelFurn'); } catch (e) {} if (pref === '0') setFurniture(false); }
 { let sp = null; try { sp = parseFloat(localStorage.getItem('modelSpeed')); } catch (e) {} if ([0.5, 0.75, 1, 1.25, 1.5, 2].includes(sp)) { tour.speed = sp; tSpeed.value = String(sp); } }
 {
@@ -2123,6 +2232,7 @@ new ResizeObserver(resize).observe(app); resize();
 }
 let last = performance.now(), lastMove = 0;
 function frame(now) {
+  if (mode !== 'walk' && walkRing.visible) { walkRing.visible = false; walkPath = null; needsRender = true; }
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   let moving = false;
   if (flight) {
