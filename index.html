@@ -1074,13 +1074,15 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   }
   // doors per the door schedule (A-801.00), all 8'-0": B006 family room, full-width painted wood barn panels on the hall
   // side (one slid over its neighbour); B004 storage, barn door parked open to the south; B002 cellar stair, swing;
-  // B003 gym and B005 bath, pocket doors shown open (in the wall); sauna door below
+  // B003 gym, barn door parked open to the south (A-601.00 1B, door type C); B005 bath, pocket door shown open (in the wall);
+  // sauna door below
   { const pw = (12.92 - ZR) / 3;   // three panels across the 11'-7" opening (A-601.00 1B)
     B(7.56, 7.83, y0 + 8.0, y0 + 8.15, ZR, 12.92, M.steel);
     for (let i = 0; i < 2; i++) B(7.68, 7.79, y0 + 0.05, y0 + 8.0, ZR + i * pw + 0.01, ZR + (i + 1) * pw - 0.01, M.trim);
     B(7.56, 7.67, y0 + 0.05, y0 + 8.0, ZR + pw + 0.01, ZR + 2 * pw - 0.01, M.trim);
     C.push([7.56, 8.25, ZR, ZR + 2 * pw]); }
   B(7.68, 7.79, y0 + 0.05, y0 + 8.0, 25.35, 29.0, M.trim); B(7.68, 7.83, y0 + 8.0, y0 + 8.15, 21.9, 29.1, M.steel); C.push([7.66, 7.83, 25.35, 29.0]);
+  B(7.68, 7.79, y0 + 0.05, y0 + 8.0, 35.66, 39.42, M.trim); B(7.68, 7.83, y0 + 8.0, y0 + 8.15, 31.8, 39.44, M.steel); C.push([7.66, 7.83, 35.66, 39.42]);   // B003 gym barn door
   leaf(0.9, 31.86, 2.6, Math.PI / 2, y0, 7.95, M.trim);
   // sauna door: wood frame with a glass panel, 7'-0", hinged on the east jamb, opening into the bath (shown closed)
   B(13.45, 13.86, y0, y0 + 7.0, 19.9, 20.05, M.veneer); B(15.46, 15.87, y0, y0 + 7.0, 19.9, 20.05, M.veneer);
