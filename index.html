@@ -2216,15 +2216,32 @@ const ftIn = v => {   // feet -> 9'-4 1/4" style, to the nearest 1/4"
   return `${f}'-${i}${['', '¼', '½', '¾'][k]}"`;
 };
 const yRoom2 = z => yCeil2(z), drop2 = L2 + 8.5;
-// [level, tag name, x0, x1, z0, z1, floor, ceiling (height or fn of z), options: ly line height, v corner verticals [x, z, floor?]]
+// [level, tag name, x0, x1, z0, z1, floor, ceiling (height or fn of z), options: ly line height, v corner verticals [x, z, floor?],
+// xs / zs where the wall-to-wall lines run (north-south at x, east-west at z), chains: extra runs of dimensions
+// ({ z, x: [[a, b, prefix], ...] } east-west, { x, z: [...] } north-south), card: text for the size card]
 const RD = (lv, t, x0, x1, z0, z1, f, c, o) => Object.assign({ lv, t, x0, x1, z0, z1, f, c }, o);
+// stair hall beside the stair up: hall width at the closets, stair width at its foot, kitchen end to the vestibule wall
+// (the hall is open to the dining room, so nothing is measured to that side)
+const HALL1 = { xs: [], zs: [], v: [[KW - 0.08, 18.0]],
+  chains: [{ z: 22.6, x: [[3.394, KW, 'hall ']] }, { z: 30.25, x: [[XL, 3.394, 'stair ']] }, { x: 7.95, z: [[KS, 36.367]] }],
+  card: `hall ${ftIn(KW - 3.394)} wide at the closets · stair ${ftIn(3.394 - XL)} · clg 11'-2"` };
+// basement hall: past the closets under the stair, then past the cellar stair enclosure
+const HALLB = { xs: [], zs: [], v: [[7.75, 20.0]],
+  chains: [{ z: 10.0, x: [[3.76, 7.83, 'hall ']] }, { z: 24.0, x: [[4.33, 7.83, 'hall ']] }],
+  card: `hall ${ftIn(7.83 - 3.76)} at the closets, ${ftIn(7.83 - 4.33)} at the cellar stair · clg 8'-3"` };
 const ROOM_DIMS = [
-  RD('first', 'Living', XL, XR, ZR, KN, 0, CH), RD('first', 'Dining', 8.311, XR, KS, ZF, 0, CH),
+  // living: depth taken along the stair guard, not over the stair opening; a second run across the head of the stair
+  RD('first', 'Living', XL, XR, ZR, KN, 0, CH, { xs: [3.85 + 0.45, XR - 0.45], v: [[XR - 0.08, ZR + 0.08], [XR - 0.08, KN - 0.08]],
+    chains: [{ z: 12.3, x: [[XL, 3.6, 'stair '], [3.85, XR]] }] }),
+  RD('first', 'Stair hall', 3.394, KW, KN, KS, 0, CH, HALL1), RD('first', 'Stair hall', XL, 8.311, KS, 36.367, 0, CH, HALL1),
+  RD('first', 'Dining', 8.311, XR, KS, ZF, 0, CH),
   RD('first', 'Kitchen', KW, XR, KN, KS, 0, KCH, { v: [[KWI + 0.3, KP + 0.3], [KE - 0.3, KSR - 0.3]] }),
   RD('first', 'Vestibule', XL, 7.728, 36.95, ZF, 0, CH),
   RD('basement', 'Family room', 8.25, XR, ZR, 14.59, BSMT, BCEIL), RD('basement', 'Bathroom', 8.41, 19.0, 15.21, 19.88, BSMT, BCEIL),
   RD('basement', 'Sauna', 13.41, 19.0, 20.30, 25.05, BSMT + 0.335, BCEIL), RD('basement', 'Storage', 8.25, 13.0, 20.30, 27.05, BSMT, BCEIL),
   RD('basement', 'Gym', 8.25, XR, 27.46, ZF, BSMT, BCEIL),
+  RD('basement', 'Hall', 3.76, 7.83, ZR, 16.52, BSMT, BCEIL, HALLB), RD('basement', 'Hall', 4.33, 7.83, 16.52, 31.86, BSMT, BCEIL, HALLB),
+  RD('basement', 'Entry vestibule', XL, 7.83, 31.86, 39.46, BSMT, BCEIL, { card: `${ftIn(7.83 - XL)} × ${ftIn(39.46 - 31.86)} · clg 8'-3"` }),
   RD('cellar', 'Cellar', 0.83, 19.16, 1.93, 32.1, CEL_LOW, CEL_CEIL, { ly: CEL + 0.05, v: [[10.4, 3.35, CEL_LOW], [18.7, 31.65, CEL]] }),
   RD('cellar', 'Mech room', 0.83, 9.83, 32.51, 40.02, CEL, CEL_CEIL), RD('cellar', 'Storage room', 10.25, 19.16, 34.10, 40.02, CEL, CEL_CEIL),
   RD('second', 'Primary bedroom', XL, XR, 28.30, ZF, L2, yRoom2), RD('second', 'Guest bedroom', 8.21, XR, ZR2, 10.08, L2, yRoom2),
@@ -2232,15 +2249,19 @@ const ROOM_DIMS = [
   RD('second', 'Guest bath', 8.21, 15.83, 10.71, 13.21, L2, drop2, { box: [8.21, 15.83, 10.71, 15.92], v: [[8.55, 11.05], [13.45, 15.6]] }),
   RD('second', 'Guest bath', 8.21, 13.79, 13.21, 15.92, L2, drop2, { box: [8.21, 15.83, 10.71, 15.92], v: [[8.55, 11.05], [13.45, 15.6]] }),
   RD('second', 'Laundry', 8.20, 13.62, 22.13, 27.71, L2, drop2),
+  // hall: stair + hall across the head of the stair, hall width beside the guard
+  RD('second', 'Hall', XL, 7.62, 10.08, 27.71, L2, yRoom2, { xs: [], zs: [], v: [[7.54, 12.0]],
+    chains: [{ z: 16.6, x: [[XL, 3.4, 'stair '], [3.67, 7.62]] }, { z: 22.5, x: [[3.67, 7.62, 'hall ']] }],
+    card: `hall ${ftIn(7.62 - 3.67)} wide at the stair · stair ${ftIn(3.4 - XL)}` }),
 ];
 const levelAtY = y => y < CEL_CEIL ? 'cellar' : y < 0 ? 'basement' : y < FF ? 'first' : 'second';
 const roomAt = (x, y, z) => { const lv = levelAtY(y); return ROOM_DIMS.find(r => r.lv === lv && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || null; };
 const dimGroup = new THREE.Group(); dimGroup.visible = false; scene.add(dimGroup);
-const dimMat = new THREE.MeshBasicMaterial({ color: 0xc23d24, depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 });
+const dimMat = new THREE.MeshBasicMaterial({ color: 0xc23d24, depthWrite: false, transparent: true, opacity: 0.95 });   // depth-tested: railings and walls hide the lines behind them
 const dimLayer = document.getElementById('dimLabels'), dimCard = document.getElementById('dimCard');
 let dimRoom = null, dimLabels = [];
 function buildRoomDims(r) {
-  dimRoom = r;
+  dimRoom = r; occDirty = true;
   dimGroup.children.forEach(m => m.geometry.dispose()); dimGroup.clear(); dimLayer.textContent = ''; dimLabels = [];
   dimGroup.visible = !!r; dimCard.hidden = !r;
   if (!r) return;
@@ -2248,24 +2269,37 @@ function buildRoomDims(r) {
   const label = (text, x, y, z, cls) => { const el = document.createElement('div'); el.className = 'dlab' + (cls ? ' ' + cls : ''); el.textContent = text; dimLayer.appendChild(el); dimLabels.push({ el, v: new THREE.Vector3(x, y, z) }); };
   const [x0, x1, z0, z1] = r.box || [r.x0, r.x1, r.z0, r.z1], ly = r.ly != null ? r.ly : r.f + 0.06, w = 0.035, e = Math.min(0.45, (x1 - x0) / 6, (z1 - z0) / 6), tk = 0.22;
   const dim = DIMS[r.lv + '|' + r.t] || '', [wd, clg] = dim.split(' · clg '), [ws, ds] = (wd || '').split(' × ');
-  // wall to wall: east-west along the rear and front walls, north-south along the side walls, with end ticks
-  [z0 + e, z1 - e].forEach(z => {
-    bar(x0, x1, ly, ly + w, z - w / 2, z + w / 2);
-    [x0 + 0.02, x1 - 0.02].forEach(x => bar(x - w / 2, x + w / 2, ly, ly + w, z - tk, z + tk));
-    label(ws || ftIn(x1 - x0), (x0 + x1) / 2, ly, z);
+  // runs: east-west { z, a, b, text } and north-south { x, a, b, text }, each with end ticks
+  const ew = [], ns = [];
+  (r.zs || [z0 + e, z1 - e]).forEach(z => ew.push({ z, a: x0, b: x1, text: ws || ftIn(x1 - x0) }));
+  (r.xs || [x0 + e, x1 - e]).forEach(x => ns.push({ x, a: z0, b: z1, text: ds || ftIn(z1 - z0) }));
+  (r.chains || []).forEach(c => {
+    const alongX = Array.isArray(c.x);
+    (alongX ? c.x : c.z).forEach(([a, b, pre]) => (alongX ? ew : ns).push(Object.assign(alongX ? { z: c.z } : { x: c.x }, { a, b, text: (pre || '') + ftIn(b - a) })));
   });
-  [x0 + e, x1 - e].forEach(x => {
-    bar(x - w / 2, x + w / 2, ly, ly + w, z0, z1);
-    [z0 + 0.02, z1 - 0.02].forEach(z => bar(x - tk, x + tk, ly, ly + w, z - w / 2, z + w / 2));
-    label(ds || ftIn(z1 - z0), x, ly, (z0 + z1) / 2);
+  ew.forEach(({ z, a, b, text }) => {
+    bar(a, b, ly, ly + w, z - w / 2, z + w / 2);
+    [a + 0.02, b - 0.02].forEach(x => bar(x - w / 2, x + w / 2, ly, ly + w, z - tk, z + tk));
+    label(text, (a + b) / 2, ly, z);
   });
-  // floor to ceiling in two opposite corners
-  (r.v || [[x0 + e, z0 + e], [x1 - e, z1 - e]]).forEach(([x, z, fy]) => {
+  // north-south runs break where an east-west run crosses them, so corners read as two lines, not a knot
+  const gap = 0.14;
+  ns.forEach(({ x, a, b, text }) => {
+    const cuts = ew.filter(q => x > q.a + 0.05 && x < q.b - 0.05 && q.z > a + gap && q.z < b - gap).map(q => q.z).sort((p, q) => p - q);
+    let s0 = a;
+    cuts.forEach(cz => { bar(x - w / 2, x + w / 2, ly, ly + w, s0, cz - gap); s0 = cz + gap; });
+    bar(x - w / 2, x + w / 2, ly, ly + w, s0, b);
+    [a + 0.02, b - 0.02].forEach(z => bar(x - tk, x + tk, ly, ly + w, z - w / 2, z + w / 2));
+    label(text, x, ly, (a + b) / 2);
+  });
+  // floor to ceiling, tucked into two opposite corners clear of the floor lines
+  (r.v || [[x0 + 0.08, z0 + 0.08], [x1 - 0.08, z1 - 0.08]]).forEach(([x, z, fy]) => {
     const yb = fy != null ? fy : r.f, yt = typeof r.c === 'function' ? r.c(z) : r.c;
     bar(x - w / 2, x + w / 2, yb, yt, z - w / 2, z + w / 2);
     [yb + w / 2, yt - w / 2].forEach(y => { bar(x - tk, x + tk, y - w / 2, y + w / 2, z - w / 2, z + w / 2); bar(x - w / 2, x + w / 2, y - w / 2, y + w / 2, z - tk, z + tk); });
     label('clg ' + ftIn(yt - yb), x, (yb + yt) / 2, z, 'h');
   });
+  if (r.card) { dimCard.innerHTML = `<b>${r.t}</b>${r.card}`; return; }
   dimCard.innerHTML = `<b>${r.t}</b>${wd || ftIn(x1 - x0) + ' × ' + ftIn(z1 - z0)}${clg ? ' · clg ' + clg : ''}`;
 }
 function updateRoomDims() {
@@ -2274,9 +2308,18 @@ function updateRoomDims() {
   if (r && dimRoom && r.t === dimRoom.t && r.lv === dimRoom.lv) r = dimRoom;   // an L-shaped room's two halves read as one
   if (r !== dimRoom) buildRoomDims(r);
 }
+function occludeDimLabels() {   // like the room tags: a label whose point sits behind a wall or rail stays hidden
+  const objs = [G.structure, G.exterior, G.kitchen, G.millwork].concat(seeInside ? [] : [G.doors]);
+  dimLabels.forEach(d => {
+    const dir = d.v.clone().sub(camera.position), dist = dir.length();
+    ray.set(camera.position, dir.normalize()); ray.far = Math.max(0.01, dist - 0.4);
+    d.hiddenBehind = ray.intersectObjects(objs, true).some(h => h.object.isMesh && h.object.material !== M.glass && h.object.material !== M.poche && h.object.parent.visible);
+  });
+}
 function placeDimLabels(w, h) {
   if (!dimRoom) return;
   dimLabels.forEach(d => {
+    if (d.hiddenBehind) { d.el.style.display = 'none'; return; }
     tmpV.copy(d.v).project(camera);
     if (tmpV.z > 1 || tmpV.x < -1.05 || tmpV.x > 1.05 || tmpV.y < -1.05 || tmpV.y > 1.05) { d.el.style.display = 'none'; return; }
     d.el.style.display = '';
@@ -2941,7 +2984,11 @@ function frame(now) {
     placeTags(W, H); placeDimLabels(W, H); placeElec(W, H);
   }
   // re-check which room tags are hidden behind walls once the camera settles
-  if (occDirty && !moving && now - lastMove > 150 && !tagLayer.hidden) { updateOcclusion(); placeTags(W, H); occDirty = false; }
+  if (occDirty && !moving && now - lastMove > 150) {
+    if (!tagLayer.hidden) { updateOcclusion(); placeTags(W, H); }
+    if (dimRoom) { occludeDimLabels(); placeDimLabels(W, H); }
+    occDirty = false;
+  }
   requestAnimationFrame(frame);
 }
 document.getElementById('loading').remove();
