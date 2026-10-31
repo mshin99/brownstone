@@ -115,6 +115,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 #tags.dims small.dim { display: block; }
 .tag:hover { border-color: #2f4f8f; }
 
+/* Dimensions inside a room (walking / walkthrough) */
+#dimLabels { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.dlab {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap;
+  font: 600 12px/1 var(--f-mono); font-variant-numeric: tabular-nums; color: #a8321d;
+  background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(168, 50, 29, 0.55); padding: 3px 5px; border-radius: 2px;
+}
+.dlab.h { color: #1b2026; border-color: rgba(27, 32, 38, 0.35); }
+.dimcard {
+  left: 50%; transform: translateX(-50%); top: calc(54px + env(safe-area-inset-top, 0px));
+  padding: 7px 12px; font: 500 12.5px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink);
+}
+.dimcard b { font-family: var(--f-display); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 8px; }
+
 /* Walk help + touch pad */
 .walkhelp {
   left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px));
@@ -174,6 +188,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   #layersBtn { display: inline-block; }
   .layers { top: auto; bottom: calc(118px + env(safe-area-inset-bottom, 0px)); width: auto; left: max(16px, env(safe-area-inset-left, 0px)); max-height: 46%; }
   .walkhelp { display: none; }
+  .dimcard { top: calc(84px + env(safe-area-inset-top, 0px)); white-space: normal; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
 }
 @media (min-width: 761px) { .layers[data-collapsed="true"] .body { display: none; } }
 </style>
@@ -182,6 +197,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 <div id="app"></div>
 <div id="tags" aria-hidden="false"></div>
+<div id="dimLabels" aria-hidden="true"></div>
+<div class="overlay card dimcard" id="dimCard" aria-live="polite" hidden></div>
 
 <header class="overlay card titleblock">
   <div class="name">
@@ -225,6 +242,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
     <button class="v" id="wideBtn" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
     <button class="v" id="dimsBtn" aria-pressed="false" title="Room dimensions and ceiling heights (M)">Dimensions</button>
+    <button class="v" id="millBtn" aria-pressed="true" title="Show or hide cabinets, built-in closets and closet doors (C)">Cabinets</button>
   </div>
   <span class="sep" aria-hidden="true" id="walkSep"></span>
   <div class="group" role="group" aria-label="Level">
@@ -274,6 +292,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
       </select>
       <button class="v" id="tWide" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
+      <button class="v" id="tDims" aria-pressed="false" title="Room dimensions and ceiling heights (M)">Dimensions</button>
+      <button class="v" id="tMill" aria-pressed="true" title="Show or hide cabinets, built-in closets and closet doors (C)">Cabinets</button>
     </div>
     <div class="tourside">
       <span class="eye">Eye 5'-3½" · 5'-8" person</span>
@@ -337,7 +357,7 @@ const camera = new THREE.PerspectiveCamera(42, 1, 0.5, 450);
 camera.rotation.order = 'YXZ';
 
 const G = {};
-['structure', 'kitchen', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => { G[k] = new THREE.Group(); scene.add(G[k]); });
+['structure', 'kitchen', 'millwork', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => { G[k] = new THREE.Group(); scene.add(G[k]); });
 
 // ---------- Materials ----------
 function std(color, rough, extra) { return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: 0 }, extra || {})); }
@@ -403,15 +423,20 @@ function boxGeo(w, h, d, unitUV) {
 }
 // [x0, x1, z0, z1] footprints the walker can't enter, per level
 const COL = { cellar: [], basement: [], first: [], second: [] }, FCOL = { cellar: [], basement: [], first: [], second: [] };
+const MCOL = { cellar: [], basement: [], first: [], second: [] };   // cabinets and closets: walkable while they're hidden
 const colliders = COL.first, furnColliders = FCOL.first;
 const SOLIDS = [];   // world-space boxes, used to tell real corners from butt joints when drawing outlines
-const SOLID_LAYERS = new Set([G.structure, G.kitchen, G.furniture, G.exterior]);
+const SOLID_LAYERS = new Set([G.structure, G.kitchen, G.millwork, G.furniture, G.exterior]);
+// Cabinets, built-in closets and closet doors go in G.millwork (the kitchen in G.kitchen) so they can be hidden together.
+// Inside millwork(() => { ... }) the box helpers default to that layer.
+let DEF = null;
+function millwork(build) { DEF = G.millwork; try { build(); } finally { DEF = null; } }
 function B(x0, x1, y0, y1, z0, z1, mat, o) {
   o = o || {};
   const m = new THREE.Mesh(boxGeo(x1 - x0, y1 - y0, z1 - z0, o.unitUV), mat);
   m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
   m.castShadow = o.shadow !== false; m.receiveShadow = true;
-  (o.parent || G.structure).add(m);
+  (o.parent || DEF || G.structure).add(m);
   if (o.poche) { const p = new THREE.Mesh(m.geometry, M.poche); p.castShadow = false; m.add(p); }
   if ((!o.parent || SOLID_LAYERS.has(o.parent)) && mat !== M.glass && mat !== M.downlight) SOLIDS.push([x0, x1, y0, y1, z0, z1]);
   if (o.collide) colliders.push([x0, x1, z0, z1]);
@@ -421,7 +446,7 @@ function B(x0, x1, y0, y1, z0, z1, mat, o) {
 function addMesh(geo, mat, parent, o) {
   o = o || {};
   const m = new THREE.Mesh(geo, mat); m.castShadow = o.shadow !== false; m.receiveShadow = true;
-  (parent || G.structure).add(m);
+  (parent || DEF || G.structure).add(m);
   if (o.poche) { const p = new THREE.Mesh(geo, M.poche); p.castShadow = false; m.add(p); }
   return m;
 }
@@ -485,7 +510,7 @@ function leaf(hx, hz, L, ang, y0, h, mat) {
   return g;
 }
 // Plumbing fixtures and fitted pieces: built facing +z at the origin, then placed
-function fx(x, y, z, rotY, build, parent) { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rotY; (parent || G.structure).add(g); build(g); return g; }
+function fx(x, y, z, rotY, build, parent) { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rotY; (parent || DEF || G.structure).add(g); build(g); return g; }
 function wallToilet(g) {   // wall-hung bowl on an in-wall carrier, seat at 1'-4", flush plate at 3'-0"
   B(-0.45, 0.45, 0.55, 1.25, 0, 0.35, M.porcelain, { parent: g });
   const bowl = addMesh(new THREE.CylinderGeometry(0.62, 0.5, 0.8, 24), M.porcelain, g); bowl.scale.set(1, 1, 1.45); bowl.position.set(0, 0.88, 1.15);
@@ -704,8 +729,8 @@ B(DX0, DX1, -0.3, 0.008, ZF, 41.0, FLR(M.checker));
   // painted wood closet doors with edge pulls, their tops following the stair (A-604.00 2B)
   const doorTop = z => Math.min(8.0, ySoffit(z) - 0.35);
   [[15.95, 18.6], [18.93, 21.6], [21.92, 25.1]].forEach(([a, b]) => {
-    prismZY([[a, 0.05], [a, doorTop(a)], [b, doorTop(b)], [b, 0.05]], x1, x1 + 0.03, M.trim, G.structure, false);
-    B(x1 + 0.03, x1 + 0.07, 2.4, 3.4, b - 0.22, b - 0.18, M.steel, { shadow: false });
+    prismZY([[a, 0.05], [a, doorTop(a)], [b, doorTop(b)], [b, 0.05]], x1, x1 + 0.03, M.trim, G.millwork, false);
+    B(x1 + 0.03, x1 + 0.07, 2.4, 3.4, b - 0.22, b - 0.18, M.steel, { shadow: false, parent: G.millwork });
   });
   // one baluster per tread + handrail 2'-11" above the nosings
   const RAIL = 2.9;
@@ -854,7 +879,7 @@ front('z', KSR, -1, 14.15, KE, 2.4, 2.875, M.cab, 'top'); front('z', KSR, -1, 14
 frontRow('z', KS, 1, [12.152, 14.45, 16.75], 0.35, 2.85, Wd, false);                // dining-side panels
 B(17.45, 18.75, 0.45, 2.7, KS, KS + 0.03, M.glassDark, { parent: K });               // wine fridge
 B(17.55, 17.6, 0.6, 2.55, KS + 0.03, KS + 0.08, M.steel, { parent: K });
-colliders.push([KW, 13.79, KN, KP], [KW, KWI, KP, KS], [KE, KEW, KN, KSR], [12.152, KEW, KSR, KS]);
+MCOL.first.push([KW, 13.79, KN, KP], [KW, KWI, KP, KS], [KE, KEW, KN, KSR], [12.152, KEW, KSR, KS]);
 
 // --- Overhead box: 7'-0" up to the 10'-6" top over every run. Toward the kitchen, white flip-up uppers to 9'-6" under the
 // 9'-8" ceiling; toward the living room, stair hall and dining room, wood doors and fixed panels; wood underside (1A-1G)
@@ -1069,7 +1094,7 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     const r = -BSMT / 14, t = 0.75, zTop = 11.83, soff = z => -((zTop - z) / t) * r - 1.0;
     prismZY([[4.4, y0], [16.52, y0], [16.52, y1], [zTop, y1], [4.4, soff(4.4)]], 3.58, 3.73, M.plaster, G.structure, true);
     B(XL, 3.58, y0, soff(8.45), 8.35, 8.45, M.plaster, { poche: true }); B(XL, 3.58, y0, y1, 12.35, 12.45, M.plaster, { poche: true });
-    [[4.6, 8.25, soff(8.25) - 0.25], [8.55, 12.25, Math.min(y0 + 6.8, soff(12.25) - 0.25)], [12.55, 16.4, y0 + 6.8]].forEach(([a, b, top]) => B(3.73, 3.76, y0 + 0.05, top, a, b, M.trim));
+    [[4.6, 8.25, soff(8.25) - 0.25], [8.55, 12.25, Math.min(y0 + 6.8, soff(12.25) - 0.25)], [12.55, 16.4, y0 + 6.8]].forEach(([a, b, top]) => B(3.73, 3.76, y0 + 0.05, top, a, b, M.trim, { parent: G.millwork }));
     C.push([XL, 3.76, 4.4, 16.52], [XL, 3.6, ZR, 4.4]);
   }
   // doors per the door schedule (A-801.00), all 8'-0": B006 family room, full-width painted wood barn panels on the hall
@@ -1091,15 +1116,17 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   B(13.6, 13.66, y0 + 2.5, y0 + 3.5, 19.8, 19.86, M.steel);
   // bathroom (design deck p.4): 1'-6" linen closet with pull-out hamper, 3'-3" floating vanity (2'-9" stone top) under a
   // recessed medicine cabinet, wall-hung toilet, shower with a 2'-0" fixed glass panel and a 6'-8" hinged glass door
-  B(8.41, 9.91, y0, y0 + 8.0, 15.21, 16.89, M.cab); B(8.47, 9.85, y0 + 0.15, y0 + 1.75, 16.89, 16.92, M.cab);
-  B(9.91, 13.16, y0 + 0.5, y0 + 2.33, 15.21, 16.87, M.veneer); B(9.91, 13.16, y0 + 2.33, y0 + 2.75, 15.21, 16.92, M.marble);
-  B(10.8, 12.26, y0 + 2.75, y0 + 2.76, 15.65, 16.6, M.porcelain, { shadow: false }); cyl(11.53, 15.45, y0 + 2.75, y0 + 3.3, 0.04, M.steel);
-  B(10.63, 12.43, y0 + 3.5, y0 + 6.75, 15.21, 15.24, M.mirror);
+  millwork(() => {
+    B(8.41, 9.91, y0, y0 + 8.0, 15.21, 16.89, M.cab); B(8.47, 9.85, y0 + 0.15, y0 + 1.75, 16.89, 16.92, M.cab);
+    B(9.91, 13.16, y0 + 0.5, y0 + 2.33, 15.21, 16.87, M.veneer); B(9.91, 13.16, y0 + 2.33, y0 + 2.75, 15.21, 16.92, M.marble);
+    B(10.8, 12.26, y0 + 2.75, y0 + 2.76, 15.65, 16.6, M.porcelain, { shadow: false }); cyl(11.53, 15.45, y0 + 2.75, y0 + 3.3, 0.04, M.steel);
+    B(10.63, 12.43, y0 + 3.5, y0 + 6.75, 15.21, 15.24, M.mirror);
+  });
   fx(14.53, y0, 15.21, 0, wallToilet);
   B(15.93, 15.98, y0, y0 + 7.0, 15.21, 17.25, M.glass, { parent: G.glass, shadow: false });
   B(15.93, 15.98, y0, y0 + 6.67, 17.3, 19.85, M.glass, { parent: G.glass, shadow: false }); B(15.86, 15.89, y0 + 3.0, y0 + 4.2, 17.45, 17.5, M.steel);
   cyl(17.6, 16.6, y1 - 0.5, y1 - 0.44, 0.4, M.steel); cyl(17.6, 16.6, y1 - 0.45, y1, 0.03, M.steel);   // ceiling-hung rain head
-  C.push([8.41, 9.91, 15.21, 16.95]);
+  MCOL.basement.push([8.41, 9.91, 15.21, 16.95]);
   // sauna (design deck p.4): wood-lined, one L-shaped bench, the south run full width and the east run butting into it
   // on a 4" raised floor (seat raised to 3'-2" above it, up in the heat; footrest at 1'-6"), 3-bar backrest on both
   // walls, heater beside the door
@@ -1128,16 +1155,16 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   }
   // storage (A-602.00 plan 02, 3A-3D): a U of shelves on standards: 2'-7 1/2" returns 1'-2" deep on the north and south
   // walls either side of the door, and a 2'-0" deep run the length of the east wall in two sections
-  { const xr = 10.875, xe = 11.0, zn = 21.47, zs2 = 25.88;
+  millwork(() => { const xr = 10.875, xe = 11.0, zn = 21.47, zs2 = 25.88;
     [0.5, 1.9, 3.3, 4.7, 6.1, 7.5].forEach(h => {
       B(8.27, xr, y0 + h - 0.07, y0 + h, 20.32, zn, M.cab); B(8.27, xr, y0 + h - 0.07, y0 + h, zs2, 27.03, M.cab);
       B(xe, 12.98, y0 + h - 0.07, y0 + h, 20.42, 26.92, M.cab);
     });
     [[xr - 0.06, zn - 0.06], [xr - 0.06, zs2], [xe, 20.42], [xe, 23.64], [xe, 26.86]].forEach(([x, z]) => B(x, x + 0.06, y0, y0 + 7.6, z, z + 0.06, M.steel));
-    C.push([8.25, xr, 20.3, zn], [8.25, xr, zs2, 27.05], [xe, 13.0, 20.3, 27.05]); }
+    MCOL.basement.push([8.25, xr, 20.3, zn], [8.25, xr, zs2, 27.05], [xe, 13.0, 20.3, 27.05]); });
   // gym closet with sliding doors
-  B(13.45, 16.2, y0, y0 + 7.0, 26.98, 27.06, M.trim); B(16.2, 19.0, y0, y0 + 7.0, 27.06, 27.14, M.trim);
-  C.push([13.41, 19.0, 25.46, 27.14]);
+  B(13.45, 16.2, y0, y0 + 7.0, 26.98, 27.06, M.trim, { parent: G.millwork }); B(16.2, 19.0, y0, y0 + 7.0, 27.06, 27.14, M.trim, { parent: G.millwork });
+  MCOL.basement.push([13.41, 19.0, 25.46, 27.14]);
   // gym: Eleiko Prestera half rack (51" deep, 77" wide over the plate horns, 93" tall) against the east wall in its
   // SVR insert platform (small, 3085517: 2653 x 2465 x 102 mm), bar running front to back so squats, deadlifts and bench have 8' of bar clearance; flat bench
   // set up under the bar; treadmill along the front wall; bike in the northwest corner; yoga mat along the west wall
@@ -1230,14 +1257,16 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   B(1.20, 3.87, CEL + 6.8, top, 32.10, 32.51, M.plaster, { poche: true }); B(16.12, 18.79, CEL + 6.8, top, 32.10, 32.51, M.plaster, { poche: true });
   leaf(1.25, 32.51, 2.55, Math.PI / 2, CEL, 6.75, M.trim); leaf(18.74, 32.51, 2.55, Math.PI / 2, CEL, 6.75, M.trim);
   leaf(18.1, 40.02, 2.7, -Math.PI / 2, CEL, 6.55, M.frame);   // C003, uPVC, swings into the storage room
-  B(5.83, 14.16, CEL, CEL + 2.9, 32.75, 33.68, M.cab); B(5.83, 14.16, CEL + 2.9, CEL + 3.0, 32.7, 33.68, M.concrete);
-  B(8.9, 10.9, CEL + 3.0, CEL + 3.02, 32.9, 33.5, M.steel); cyl(9.9, 33.55, CEL + 3.0, CEL + 3.9, 0.04, M.steel);
-  C.push([5.83, 14.16, 32.7, 33.68]);
+  millwork(() => {
+    B(5.83, 14.16, CEL, CEL + 2.9, 32.75, 33.68, M.cab); B(5.83, 14.16, CEL + 2.9, CEL + 3.0, 32.7, 33.68, M.concrete);
+    B(8.9, 10.9, CEL + 3.0, CEL + 3.02, 32.9, 33.5, M.steel); cyl(9.9, 33.55, CEL + 3.0, CEL + 3.9, 0.04, M.steel);
+  });
+  MCOL.cellar.push([5.83, 14.16, 32.7, 33.68]);
   cyl(6.63, 35.4, CEL, CEL + 5.2, 1.0, M.porcelain); cyl(8.5, 34.8, CEL, CEL + 1.2, 0.45, M.steel);
   B(7.0, 7.9, CEL + 3.2, CEL + 4.4, 39.8, 40.02, M.steel); B(9.0, 9.6, CEL + 3.2, CEL + 4.2, 39.8, 40.02, M.steel);
   B(2.9, 3.7, CEL + 3.5, CEL + 6.0, 39.82, 40.02, M.frame);
-  B(18.4, 19.16, CEL, CEL + 6.0, 34.5, 39.6, M.cab);
-  C.push([5.6, 7.7, 34.3, 36.5], [18.4, 19.16, 34.5, 39.6]);
+  B(18.4, 19.16, CEL, CEL + 6.0, 34.5, 39.6, M.cab, { parent: G.millwork });
+  C.push([5.6, 7.7, 34.3, 36.5]); MCOL.cellar.push([18.4, 19.16, 34.5, 39.6]);
   // cellar stair: new wood stair, 11 treads @ 9-1/16", 12 risers @ 8", painted wood railing
   {
     const r = 8 / 12, t = (9 + 1 / 16) / 12, zb = 20.3, x0 = 0.83, x1 = 3.58;
@@ -1294,22 +1323,22 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   }
   // guest bedroom reach-in closet in the alcove off the south wall (A-101.00, A-631.00 1C): three drawers to 3'-0", a
   // hanging rod at 6'-0", shelves at 6'-4" and 7'-9"; painted wood sliding door on a track, parked open to the west
-  {
+  millwork(() => {
     const x0 = 16.46, x1 = XR, z0 = 10.1, z1 = 12.04;
     B(x0, x1, y0, y0 + 0.4, z0 + 0.3, z1, M.black, { shadow: false });
     B(x0, x1, y0 + 0.4, y0 + 2.9, z0 + 0.32, z1, M.cab); B(x0, x1, y0 + 2.9, y0 + 3.0, z0 + 0.3, z1, M.cab);
-    [[0.4, 1.18], [1.18, 2.01], [2.01, 2.88]].forEach(([v0, v1]) => front('z', z0 + 0.32, -1, x0, x1, y0 + v0, y0 + v1, M.cab, 'top', undefined, G.structure));
+    [[0.4, 1.18], [1.18, 2.01], [2.01, 2.88]].forEach(([v0, v1]) => front('z', z0 + 0.32, -1, x0, x1, y0 + v0, y0 + v1, M.cab, 'top', undefined, G.millwork));
     B(x0, x1, y0 + 6.29, y0 + 6.42, z0 + 0.3, z1, M.cab); B(x0, x1, y0 + 7.74, y0 + 7.86, z0 + 0.3, z1, M.cab);
-    const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, x1 - x0, 12), M.steel, G.structure); rod.rotation.z = Math.PI / 2; rod.position.set((x0 + x1) / 2, y0 + 6.0, 11.1);
+    const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, x1 - x0, 12), M.steel); rod.rotation.z = Math.PI / 2; rod.position.set((x0 + x1) / 2, y0 + 6.0, 11.1);
     B(x0 - 3.1, x0 - 0.05, y0 + 0.05, y0 + 8.9, 9.96, 10.05, M.trim); B(x0 - 3.2, x1, y0 + 8.95, y0 + 9.03, 9.95, 10.09, M.steel);
-  }
+  });
   // guest bath: toilet, vanity, shower
   fx(9.4, y0, 10.71, 0, wallToilet);
-  fx(13.79, y0, 14.78, -Math.PI / 2, g => vanity(g, 2.28, 1.65));   // 2'-3" x 1'-8" (design deck p.4)
+  fx(13.79, y0, 14.78, -Math.PI / 2, g => vanity(g, 2.28, 1.65), G.millwork);   // 2'-3" x 1'-8" (design deck p.4)
   B(12.12, 12.17, y0, y0 + 7.0, 10.71, 13.21, M.glass, { parent: G.glass, shadow: false }); cyl(15.4, 12.0, y0 + 6.6, y0 + 6.7, 0.3, M.steel);
   // primary WC: wall-hung toilet, storage cabinet over a shelf in the 1'-2" alcove (design deck p.5)
   fx(19.04, y0, 14.81, -Math.PI / 2, wallToilet);
-  B(16.5, 19.0, y0 + 4.7, y0 + 8.9, 12.46, 13.6, M.cab); B(16.5, 19.0, y0 + 3.6, y0 + 3.7, 12.46, 13.5, M.cab);
+  B(16.5, 19.0, y0 + 4.7, y0 + 8.45, 12.46, 13.6, M.cab, { parent: G.millwork }); B(16.5, 19.0, y0 + 3.6, y0 + 3.7, 12.46, 13.5, M.cab, { parent: G.millwork });
   // primary bath (design deck p.5): 5'-0" x 2'-8" alcove tub between the north and south walls, apron toward the shower,
   // spout and valve on the north end wall; fixed glass panel and hinged glass door on the shower's east side; 5'-0" vanity
   { const x0 = 8.2, x1 = 10.87, z0 = 16.54, z1 = 21.54, h = y0 + 1.67, r = 0.3, e = 0.45;
@@ -1320,32 +1349,34 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   B(13.6, 13.65, y0, y0 + 7.0, 16.54, 19.04, M.glass, { parent: G.glass, shadow: false });
   B(13.6, 13.65, y0, y0 + 7.0, 19.09, 21.5, M.glass, { parent: G.glass, shadow: false }); B(13.67, 13.7, y0 + 3.0, y0 + 4.2, 19.25, 19.3, M.steel);
   cyl(12.2, 17.1, y0 + 6.6, y0 + 6.7, 0.35, M.steel);
-  fx(19.04, y0, 19.04, -Math.PI / 2, g => vanity(g, 5.0, 1.68, [-1.15, 1.15]));
-  C.push([8.2, 10.87, 16.54, 21.54], [17.3, 19.04, 16.8, 21.3]);
+  fx(19.04, y0, 19.04, -Math.PI / 2, g => vanity(g, 5.0, 1.68, [-1.15, 1.15]), G.millwork);
+  C.push([8.2, 10.87, 16.54, 21.54]); MCOL.second.push([17.3, 19.04, 16.8, 21.3]);
   // laundry alcove: counter + stacked washer/dryer
-  B(8.25, 10.9, y0, y0 + 3.0, 25.7, 27.71, M.cab); B(8.25, 10.9, y0 + 2.9, y0 + 3.0, 25.6, 27.71, M.marble);
+  millwork(() => { B(8.25, 10.9, y0, y0 + 3.0, 25.7, 27.71, M.cab); B(8.25, 10.9, y0 + 2.9, y0 + 3.0, 25.6, 27.71, M.marble); });
   B(10.95, 13.55, y0, y0 + 6.4, 25.2, 27.7, M.porcelain);
   [y0 + 1.6, y0 + 4.8].forEach(yy => { const d = addMesh(new THREE.CircleGeometry(0.7, 28), M.ovenGlass, G.structure, { shadow: false }); d.rotation.y = Math.PI; d.position.set(12.25, yy, 25.18); });
-  C.push([8.25, 13.55, 25.2, 27.71]);
+  C.push([10.95, 13.55, 25.2, 27.71]); MCOL.second.push([8.25, 10.9, 25.6, 27.71]);
   // primary closet wall (A-630.00 4B): linen drawers to 4'-7 1/2" under the ERV unit and a steam closet, below an 8'-4"
   // soffit; then three built-in closet sections 9'-4" high (drawers, hanging, shelves) behind full-height doors
   {
     const xf = 17.38, xb = XR, top = y0 + 9.33;
     B(xf, xb, y0 + 8.33, y0 + 9.6, 22.13, 28.3, M.plaster, { poche: true });                       // soffit
+    DEF = G.millwork;
     B(xf, xb, y0, y0 + 4.62, 22.26, 25.6, M.cab, { poche: true });                                 // deep linen drawers
-    for (let i = 0; i < 4; i++) front('x', xf, -1, 22.26, 25.6, y0 + 0.4 + i * 1.02, y0 + 1.41 + i * 1.02, M.cab, 'top', undefined, G.structure);
+    for (let i = 0; i < 4; i++) front('x', xf, -1, 22.26, 25.6, y0 + 0.4 + i * 1.02, y0 + 1.41 + i * 1.02, M.cab, 'top', undefined, G.millwork);
     B(xf + 0.3, xb, y0 + 4.62, y0 + 8.33, 22.26, 25.6, M.cab, { poche: true });                    // ERV unit enclosure
     B(xf, xb, y0, y0 + 8.33, 25.72, 28.17, M.cab, { poche: true });                                // steam closet
-    front('x', xf, -1, 25.72, 28.17, y0 + 0.4, y0 + 8.3, M.cab, 'v0', 1.2, G.structure);
+    front('x', xf, -1, 25.72, 28.17, y0 + 0.4, y0 + 8.3, M.cab, 'v0', 1.2, G.millwork);
     B(xf, xb, y0, top, 28.42, 37.62, M.cab, { poche: true });                                      // closet sections
     B(xf, xb, top, y0 + 9.6, 28.42, 37.62, M.cab, { poche: true });
     const zc = [28.42, 29.95, 31.48, 33.0, 34.55, 36.08, 37.62];
-    frontRow('x', xf, -1, zc, y0 + 0.4, top, M.cab, false, G.structure);
+    frontRow('x', xf, -1, zc, y0 + 0.4, top, M.cab, false, G.millwork);
     for (let i = 0; i < 6; i++) B(xf - 0.05, xf, y0 + 3.6, y0 + 4.6, i % 2 ? zc[i] + 0.12 : zc[i + 1] - 0.16, i % 2 ? zc[i] + 0.16 : zc[i + 1] - 0.12, M.steel, { shadow: false });
+    DEF = null;
   }
   // divider between the bed and the closet (A-630.00 4A, 3C): 7'-0" long, 8'-0" high; a painted wood panel faces the bed;
   // toward the closet, two stacks of three drawers to 3'-0", an open 1'-6", then three bays of shelves to the top
-  {
+  millwork(() => {
     const x0 = 11.96, xp = 12.21, xs = 13.29, x1 = 14.21, z0 = 30.8, z1 = 37.78, top = y0 + 8.03, Pm = M.cab;
     B(x0, xp, y0, top, z0, z1, Pm, { poche: true });                                                // back panel
     B(xp, x1, y0, top, z0, z0 + 0.12, Pm, { poche: true }); B(xp, x1, y0, top, z1 - 0.12, z1, Pm, { poche: true });   // end panels
@@ -1353,12 +1384,12 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     B(xp, x1 - 0.02, y0 + 0.4, y0 + 2.9, z0 + 0.12, z1 - 0.12, Pm);
     B(xp, x1, y0 + 2.9, y0 + 3.0, z0 + 0.12, z1 - 0.12, Pm);
     const zm = 34.29;
-    [[z0 + 0.12, zm], [zm, z1 - 0.12]].forEach(([a, b]) => [[0.4, 1.17], [1.17, 2.01], [2.01, 2.88]].forEach(([v0, v1]) => front('x', x1 - 0.02, 1, a, b, y0 + v0, y0 + v1, Pm, 'top', undefined, G.structure)));
+    [[z0 + 0.12, zm], [zm, z1 - 0.12]].forEach(([a, b]) => [[0.4, 1.17], [1.17, 2.01], [2.01, 2.88]].forEach(([v0, v1]) => front('x', x1 - 0.02, 1, a, b, y0 + v0, y0 + v1, Pm, 'top', undefined, G.millwork)));
     [[4.48, 4.61], [5.61, 5.73], [6.73, 6.86], [7.86, 8.03]].forEach(([v0, v1]) => B(xp, xs, y0 + v0, y0 + v1, z0 + 0.12, z1 - 0.12, Pm));
     [33.12, 35.34].forEach(z => B(xp, xs, y0 + 4.48, y0 + 7.86, z, z + 0.125, Pm));
-    C.push([x0, x1, z0, z1]);
-  }
-  C.push([17.38, XR, 22.13, 37.62]);
+    MCOL.second.push([x0, x1, z0, z1]);
+  });
+  MCOL.second.push([17.38, XR, 22.13, 37.62]);
   // furniture: primary bed, guest bed, office desk (illustrative)
   bed(XL, 7.3, 31.6, 36.9, 'x0', y0); B(XL, 2.2, y0, y0 + 2.1, 29.8, 31.4, M.darkWood, { parent: F }); B(XL, 2.2, y0, y0 + 2.1, 37.1, 38.7, M.darkWood, { parent: F });
   bed(12.76, XR, 4.0, 9.0, 'x1', y0);
@@ -1366,9 +1397,15 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   [[1.2, ZR2 + 0.3], [6.2, ZR2 + 0.3], [1.2, ZR2 + 2.1], [6.2, ZR2 + 2.1]].forEach(([x, z]) => B(x - 0.06, x + 0.06, y0, y0 + 2.4, z - 0.06, z + 0.06, M.iron, { parent: F, shadow: false }));
   B(3.0, 4.5, y0, y0 + 1.5, 3.6, 5.0, M.leather, { parent: F }); B(3.0, 4.5, y0 + 1.5, y0 + 3.2, 4.9, 5.1, M.leather, { parent: F });
   FCOL.second.push([XL, 7.3, 29.8, 38.7], [12.76, XR, 4.0, 9.0], [1.0, 6.4, ZR2, 5.1]);
-  // second floor ceiling: the underside of the sloped roof (see roof below); downlights + room lights
+  // second floor ceiling: the underside of the sloped roof (see roof below), dropped to 8'-6" in the guest bath, primary WC,
+  // primary bath, laundry and the passage to the closets (A-201.00 reflected ceiling plan); downlights + room lights
+  const DROP = [[8.2, 15.83, 10.71, 13.21], [8.2, 13.79, 13.21, 15.92], [14.58, 19.04, 13.63, 16.13], [16.46, 19.04, 12.46, 13.63],
+    [8.2, 19.04, 16.54, 21.54], [8.2, 13.62, 22.13, 27.71], [14.21, 17.38, 22.13, 28.24]];
+  DROP.forEach(([a, b, c, d]) => B(a, b, y0 + 8.5, y0 + 8.58, c, d, M.ceiling, { parent: G.ceiling }));
+  B(14.21, 17.38, y0 + 8.5, yCeil2(28.3) + 0.05, 28.24, 28.3, M.ceiling, { parent: G.ceiling });   // step up to the bedroom ceiling
+  const ceil2 = (x, z) => DROP.some(([a, b, c, d]) => x > a && x < b && z > c && z < d) ? y0 + 8.5 : yCeil2(z);
   [[4, 6], [4, 11], [12, 4], [12, 8], [16, 6], [10, 12.2], [11, 18.8], [16, 19], [16.6, 14.8], [5.5, 18], [5.5, 23], [10.9, 23.4], [11, 26], [4, 32], [9, 32], [15.6, 25.5], [15.6, 33], [9, 38], [15, 38]]
-    .forEach(([x, z]) => downlight(x, yCeil2(z), z));
+    .forEach(([x, z]) => downlight(x, ceil2(x, z), z));
   roomLight('second', 5, yCeil2(10) - 1, 10); roomLight('second', 13, yCeil2(6) - 1, 6); roomLight('second', 13, yCeil2(19) - 1, 19);
   roomLight('second', 9, yCeil2(33) - 1, 33); roomLight('second', 15, yCeil2(30) - 1, 30);
 }
@@ -1458,7 +1495,7 @@ function mergeLayer(group) {
     group.add(m);
   });
 }
-['structure', 'kitchen', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => mergeLayer(G[k]));
+['structure', 'kitchen', 'millwork', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => mergeLayer(G[k]));
 
 // ================= OUTLINES =================
 // Thin lines wherever two surfaces meet at an angle, so walls and corners read in tight spaces even with flat colors.
@@ -1499,7 +1536,7 @@ function dropButtJoints(geo) {
 {
   const skip = new Set([M.poche, M.glass, M.downlight, M.rug, M.lampShade]);
   const ground = new Set([M.concrete, M.grass, M.asphalt, M.basement]);
-  ['structure', 'kitchen', 'furniture', 'exterior'].forEach(k => {
+  ['structure', 'kitchen', 'millwork', 'furniture', 'exterior'].forEach(k => {
     [...G[k].children].forEach(m => {
       if (!m.isMesh || skip.has(m.material) || (k === 'exterior' && ground.has(m.material))) return;
       const e = new THREE.LineSegments(dropButtJoints(new THREE.EdgesGeometry(m.geometry, 28)), edgeMat);
@@ -1571,7 +1608,7 @@ const LEVELS = {
     walks: { office: { label: 'Office', pos: [4.6, 12.4], yaw: 0, pitch: -0.05 }, guest: { label: 'Guest room', pos: [9.6, 9.0], yaw: -0.35, pitch: -0.08 },
              bath: { label: 'Primary bath', pos: [15.6, 24.0], yaw: 0, pitch: -0.1 }, bedroom: { label: 'Bedroom', pos: [10.0, 39.2], yaw: 0.5, pitch: -0.1 } },
     rooms: sch([['Primary bedroom', '226.7 SF'], ['Guest bedroom', '98.9 SF'], ['Office', '80.4 SF'], ['Primary bath + WC', 'tub, shower'], ['Guest bath', 'shower'], ['Laundry', 'stacked W/D']]),
-    dims: sch([['Ceiling, front', '9\'-6"'], ['Ceiling, rear', '8\'-11 1/4"'], ['Skylights', 'stair + bath'], ['Roof access', 'glazed hatch, ladder']]),
+    dims: sch([['Ceiling, front', '9\'-6"'], ['Ceiling, rear', '8\'-11 1/4"'], ['Baths, laundry', '8\'-6"'], ['Skylights', 'stair + bath'], ['Roof access', 'glazed hatch, ladder']]),
   },
   house: {
     label: 'Whole house', y: 6, floor: 0, cut: null, sub: 'Proposed, all levels', sheet: 'A-300.00', plan: 'Elevations + A-400.00', bounds: [XL, XR, ZR, ZF],
@@ -1705,15 +1742,25 @@ G.furniture.visible = false;
 // ---------- Room dimensions on the room tags: width x depth and ceiling height (button or M) ----------
 function setDims(on) {
   document.getElementById('tags').classList.toggle('dims', on);
-  document.getElementById('dimsBtn').setAttribute('aria-pressed', String(on));
+  ['dimsBtn', 'tDims'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
   occDirty = true; invalidate();
   try { localStorage.setItem('modelDims', on ? '1' : '0'); } catch (e) {}
 }
 const dimsOn = () => document.getElementById('tags').classList.contains('dims');
-document.getElementById('dimsBtn').addEventListener('click', () => setDims(!dimsOn()));
+['dimsBtn', 'tDims'].forEach(id => document.getElementById(id).addEventListener('click', () => setDims(!dimsOn())));
+// ---------- Cabinets: hide the kitchen, built-in closets, vanities and closet doors to see the bare rooms (button or C) ----------
+function setMillwork(on) {
+  G.kitchen.visible = G.millwork.visible = on;
+  ['millBtn', 'tMill'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
+  occDirty = true; invalidate(true);
+  try { localStorage.setItem('modelMill', on ? '1' : '0'); } catch (e) {}
+}
+['millBtn', 'tMill'].forEach(id => document.getElementById(id).addEventListener('click', () => setMillwork(!G.millwork.visible)));
 window.addEventListener('keydown', e => {
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-  if (e.key.toLowerCase() === 'm' && !e.repeat && !e.metaKey && !e.ctrlKey) setDims(!dimsOn());
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key.toLowerCase() === 'm') setDims(!dimsOn());
+  if (e.key.toLowerCase() === 'c') setMillwork(!G.millwork.visible);
 });
 const walkGroup = document.getElementById('walkGroup'), walkSep = document.getElementById('walkSep');
 function setLevel(lv, quiet) {
@@ -1759,7 +1806,7 @@ function floorPoint(cx, cy) {
 // click destination: the floor point, or just short of the first wall / fixture the ray hits on the way
 function clickTarget(cx, cy) {
   const f = floorPoint(cx, cy);
-  const objs = [G.structure, G.kitchen]; if (G.furniture.visible) objs.push(G.furniture);
+  const objs = [G.structure, G.kitchen, G.millwork, G.furniture].filter(g => g.visible);
   const hit = walkRay.intersectObjects(objs, true).find(h => h.object.isMesh && h.object.material !== M.glass && h.point.y > walkFloor + 0.15);
   const p = camera.position;
   if (hit && (!f || hit.distance < Math.hypot(f.x - p.x, walkFloor - p.y, f.z - p.z))) {
@@ -1862,7 +1909,9 @@ function blocked(x, z) {
     // on the first floor, allow standing inside the front door reveal
     if (!(walkLv === 'first' && z > ZF - 0.2 && z < 41 && x > DX0 + r && x < DX1 - r)) return true;
   }
-  const list = G.furniture.visible ? COL[walkLv].concat(FCOL[walkLv]) : COL[walkLv];
+  let list = COL[walkLv];
+  if (G.furniture.visible) list = list.concat(FCOL[walkLv]);
+  if (G.millwork.visible) list = list.concat(MCOL[walkLv]);
   for (const c of list) if (x > c[0] - r && x < c[1] + r && z > c[2] - r && z < c[3] + r) return true;
   return false;
 }
@@ -1931,9 +1980,9 @@ const DIMS = {
   'basement|Storage': `4'-9" × 6'-9" · clg 8'-3"`,
   'cellar|Cellar': `18'-4" × 30'-2" · clg 8'-0" (7'-0" ends)`, 'cellar|Mech room': `9'-0" × 7'-6" · clg 7'-0"`,
   'cellar|Storage room': `8'-11" × 5'-11" · clg 7'-0"`,
-  'second|Primary bedroom': `18'-11" × 12'-0" · clg 9'-4"–9'-6"`, 'second|Guest bedroom': `11'-3" × 8'-9½" · clg 8'-11"–9'-1"`,
-  'second|Office': `7'-1" × 8'-9½" · clg 8'-11"–9'-1"`, 'second|Primary bath': `10'-10" × 5'-0" · clg 9'-2"`,
-  'second|Guest bath': `7'-7½" × 5'-2½" · clg 8'-6"`, 'second|Laundry': `5'-5" × 5'-7" · clg 9'-3"`,
+  'second|Primary bedroom': `18'-11" × 12'-0" · clg 9'-4"–9'-6"`, 'second|Guest bedroom': `11'-3" × 8'-9½" · clg 8'-11¼"–9'-0¾"`,
+  'second|Office': `7'-1" × 8'-9½" · clg 8'-11¼"–9'-0¾"`, 'second|Primary bath': `10'-10" × 5'-0" · clg 8'-6"`,
+  'second|Guest bath': `7'-7½" × 5'-2½" · clg 8'-6"`, 'second|Laundry': `5'-5" × 5'-7" · clg 8'-6"`,
 };
 const tagLayer = document.getElementById('tags');
 TAGS.forEach(d => {
@@ -1950,7 +1999,7 @@ function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level ==
 const tmpV = new THREE.Vector3(), ray = new THREE.Raycaster();
 // hide a tag when solid geometry below the section cut stands between it and the camera (run once the camera settles)
 function updateOcclusion() {
-  const objs = [G.structure, G.exterior, G.kitchen];
+  const objs = [G.structure, G.exterior, G.kitchen, G.millwork];
   TAGS.forEach(d => {
     if (d.lv !== level) return;
     const dir = d.vec.clone().sub(camera.position), dist = dir.length();
@@ -1964,6 +2013,83 @@ function placeTags(w, h) {
     if (d.lv !== level || (d.ext && !G.exterior.visible) || d.vec.y > cutPlane.constant || d.hiddenBehind) { d.el.style.display = 'none'; return; }
     tmpV.copy(d.vec).project(camera);
     if (tmpV.z > 1 || tmpV.x < -1.1 || tmpV.x > 1.1 || tmpV.y < -1.1 || tmpV.y > 1.1) { d.el.style.display = 'none'; return; }
+    d.el.style.display = '';
+    d.el.style.transform = `translate(-50%,-50%) translate(${((tmpV.x + 1) / 2 * w).toFixed(1)}px,${((1 - tmpV.y) / 2 * h).toFixed(1)}px)`;
+  });
+}
+
+// ---------- Dimensions inside a room (walking or the walkthrough, with Dimensions on) ----------
+// The room you stand in gets wall-to-wall dimension lines just above the floor along all four walls, floor-to-ceiling
+// lines in two opposite corners (both ends of a sloped ceiling), labels on each, and a card with its size. Rectangles
+// are the finished faces from the plans; the wall sizes and the card read the same strings as the room tags.
+const ftIn = v => {   // feet -> 9'-4 1/4" style, to the nearest 1/4"
+  const q = Math.round(v * 48), f = Math.floor(q / 48), r = q - f * 48, i = Math.floor(r / 4), k = r % 4;
+  return `${f}'-${i}${['', '¼', '½', '¾'][k]}"`;
+};
+const yRoom2 = z => yCeil2(z), drop2 = L2 + 8.5;
+// [level, tag name, x0, x1, z0, z1, floor, ceiling (height or fn of z), options: ly line height, v corner verticals [x, z, floor?]]
+const RD = (lv, t, x0, x1, z0, z1, f, c, o) => Object.assign({ lv, t, x0, x1, z0, z1, f, c }, o);
+const ROOM_DIMS = [
+  RD('first', 'Living', XL, XR, ZR, KN, 0, CH), RD('first', 'Dining', 8.311, XR, KS, ZF, 0, CH),
+  RD('first', 'Kitchen', KW, XR, KN, KS, 0, KCH, { v: [[KWI + 0.3, KP + 0.3], [KE - 0.3, KSR - 0.3]] }),
+  RD('first', 'Vestibule', XL, 7.728, 36.95, ZF, 0, CH),
+  RD('basement', 'Family room', 8.25, XR, ZR, 14.59, BSMT, BCEIL), RD('basement', 'Bathroom', 8.41, 19.0, 15.21, 19.88, BSMT, BCEIL),
+  RD('basement', 'Sauna', 13.41, 19.0, 20.30, 25.05, BSMT + 0.335, BCEIL), RD('basement', 'Storage', 8.25, 13.0, 20.30, 27.05, BSMT, BCEIL),
+  RD('basement', 'Gym', 8.25, XR, 27.46, ZF, BSMT, BCEIL),
+  RD('cellar', 'Cellar', 0.83, 19.16, 1.93, 32.1, CEL_LOW, CEL_CEIL, { ly: CEL + 0.05, v: [[10.4, 3.35, CEL_LOW], [18.7, 31.65, CEL]] }),
+  RD('cellar', 'Mech room', 0.83, 9.83, 32.51, 40.02, CEL, CEL_CEIL), RD('cellar', 'Storage room', 10.25, 19.16, 34.10, 40.02, CEL, CEL_CEIL),
+  RD('second', 'Primary bedroom', XL, XR, 28.30, ZF, L2, yRoom2), RD('second', 'Guest bedroom', 8.21, XR, ZR2, 10.08, L2, yRoom2),
+  RD('second', 'Office', XL, 7.62, ZR2, 10.08, L2, yRoom2), RD('second', 'Primary bath', 8.20, 19.04, 16.54, 21.54, L2, drop2),
+  RD('second', 'Guest bath', 8.21, 15.83, 10.71, 13.21, L2, drop2, { box: [8.21, 15.83, 10.71, 15.92], v: [[8.55, 11.05], [13.45, 15.6]] }),
+  RD('second', 'Guest bath', 8.21, 13.79, 13.21, 15.92, L2, drop2, { box: [8.21, 15.83, 10.71, 15.92], v: [[8.55, 11.05], [13.45, 15.6]] }),
+  RD('second', 'Laundry', 8.20, 13.62, 22.13, 27.71, L2, drop2),
+];
+const levelAtY = y => y < CEL_CEIL ? 'cellar' : y < 0 ? 'basement' : y < FF ? 'first' : 'second';
+const roomAt = (x, y, z) => { const lv = levelAtY(y); return ROOM_DIMS.find(r => r.lv === lv && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || null; };
+const dimGroup = new THREE.Group(); dimGroup.visible = false; scene.add(dimGroup);
+const dimMat = new THREE.MeshBasicMaterial({ color: 0xc23d24, depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 });
+const dimLayer = document.getElementById('dimLabels'), dimCard = document.getElementById('dimCard');
+let dimRoom = null, dimLabels = [];
+function buildRoomDims(r) {
+  dimRoom = r;
+  dimGroup.children.forEach(m => m.geometry.dispose()); dimGroup.clear(); dimLayer.textContent = ''; dimLabels = [];
+  dimGroup.visible = !!r; dimCard.hidden = !r;
+  if (!r) return;
+  const bar = (x0, x1, y0, y1, z0, z1) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), dimMat); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); m.renderOrder = 20; dimGroup.add(m); };
+  const label = (text, x, y, z, cls) => { const el = document.createElement('div'); el.className = 'dlab' + (cls ? ' ' + cls : ''); el.textContent = text; dimLayer.appendChild(el); dimLabels.push({ el, v: new THREE.Vector3(x, y, z) }); };
+  const [x0, x1, z0, z1] = r.box || [r.x0, r.x1, r.z0, r.z1], ly = r.ly != null ? r.ly : r.f + 0.06, w = 0.035, e = Math.min(0.45, (x1 - x0) / 6, (z1 - z0) / 6), tk = 0.22;
+  const dim = DIMS[r.lv + '|' + r.t] || '', [wd, clg] = dim.split(' · clg '), [ws, ds] = (wd || '').split(' × ');
+  // wall to wall: east-west along the rear and front walls, north-south along the side walls, with end ticks
+  [z0 + e, z1 - e].forEach(z => {
+    bar(x0, x1, ly, ly + w, z - w / 2, z + w / 2);
+    [x0 + 0.02, x1 - 0.02].forEach(x => bar(x - w / 2, x + w / 2, ly, ly + w, z - tk, z + tk));
+    label(ws || ftIn(x1 - x0), (x0 + x1) / 2, ly, z);
+  });
+  [x0 + e, x1 - e].forEach(x => {
+    bar(x - w / 2, x + w / 2, ly, ly + w, z0, z1);
+    [z0 + 0.02, z1 - 0.02].forEach(z => bar(x - tk, x + tk, ly, ly + w, z - w / 2, z + w / 2));
+    label(ds || ftIn(z1 - z0), x, ly, (z0 + z1) / 2);
+  });
+  // floor to ceiling in two opposite corners
+  (r.v || [[x0 + e, z0 + e], [x1 - e, z1 - e]]).forEach(([x, z, fy]) => {
+    const yb = fy != null ? fy : r.f, yt = typeof r.c === 'function' ? r.c(z) : r.c;
+    bar(x - w / 2, x + w / 2, yb, yt, z - w / 2, z + w / 2);
+    [yb + w / 2, yt - w / 2].forEach(y => { bar(x - tk, x + tk, y - w / 2, y + w / 2, z - w / 2, z + w / 2); bar(x - w / 2, x + w / 2, y - w / 2, y + w / 2, z - tk, z + tk); });
+    label('clg ' + ftIn(yt - yb), x, (yb + yt) / 2, z, 'h');
+  });
+  dimCard.innerHTML = `<b>${r.t}</b>${wd || ftIn(x1 - x0) + ' × ' + ftIn(z1 - z0)}${clg ? ' · clg ' + clg : ''}`;
+}
+function updateRoomDims() {
+  const on = dimsOn() && (mode === 'walk' || mode === 'tour'), p = camera.position;
+  let r = on ? roomAt(p.x, p.y, p.z) : null;
+  if (r && dimRoom && r.t === dimRoom.t && r.lv === dimRoom.lv) r = dimRoom;   // an L-shaped room's two halves read as one
+  if (r !== dimRoom) buildRoomDims(r);
+}
+function placeDimLabels(w, h) {
+  if (!dimRoom) return;
+  dimLabels.forEach(d => {
+    tmpV.copy(d.v).project(camera);
+    if (tmpV.z > 1 || tmpV.x < -1.05 || tmpV.x > 1.05 || tmpV.y < -1.05 || tmpV.y > 1.05) { d.el.style.display = 'none'; return; }
     d.el.style.display = '';
     d.el.style.transform = `translate(-50%,-50%) translate(${((tmpV.x + 1) / 2 * w).toFixed(1)}px,${((1 - tmpV.y) / 2 * h).toFixed(1)}px)`;
   });
@@ -2312,6 +2438,7 @@ new ResizeObserver(resize).observe(app); resize();
 // initial view: first floor from the street side (no animation)
 { let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1' || pref === '2') setLens(+pref); }
 { let pref = null; try { pref = localStorage.getItem('modelDims'); } catch (e) {} if (pref === '1') setDims(true); }
+{ let pref = null; try { pref = localStorage.getItem('modelMill'); } catch (e) {} if (pref === '0') setMillwork(false); }
 { let sp = null; try { sp = parseFloat(localStorage.getItem('modelSpeed')); } catch (e) {} if ([0.5, 0.75, 1, 1.25, 1.5, 2].includes(sp)) { tour.speed = sp; tSpeed.value = String(sp); } }
 {
   const p = orbitPose('aerial', 'first'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
@@ -2334,8 +2461,9 @@ function frame(now) {
   if (moving) { lastMove = now; occDirty = true; }
   if (moving || needsRender) {
     if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
+    updateRoomDims();
     renderer.render(scene, camera); needsRender = false;
-    placeTags(W, H);
+    placeTags(W, H); placeDimLabels(W, H);
   }
   // re-check which room tags are hidden behind walls once the camera settles
   if (occDirty && !moving && now - lastMove > 150 && !tagLayer.hidden) { updateOcclusion(); placeTags(W, H); occDirty = false; }
