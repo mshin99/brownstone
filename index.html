@@ -2480,6 +2480,41 @@ Object.entries(CIRCUITS).forEach(([id, c]) => {
     c.fixtures.push(f); FIXTURES.push(f);
   });
 });
+// Wall sconces in the model itself, so they read in the interior and exterior views: each one slides back from its plan
+// symbol along its facing until it meets the wall. Interior B types: round backplate, short arm, glass cylinder; the
+// exterior EX types: a dark lantern. Mounting heights are not in the DD set; typical heights assumed (6'-6" stair and
+// entry, 6'-0" over a mirror, 5'-9" either side of one, 4'-9" bedside, 6'-9" outside).
+const SC_H = { stairUp: 6.5, stairDn: 6.5, celStair: 6.5, stoop: 6.5, bathB: 6.0, gbB: 6.0, pbB: 5.75, b5: 4.75 };
+const scBronze = std(0x2e2a26, 0.5, { metalness: 0.6 });
+const scGlassOff = new THREE.MeshStandardMaterial({ color: 0xeedcb8, emissive: 0xffe4b0, emissiveIntensity: 0.18, roughness: 0.35, side: THREE.DoubleSide });
+const scGlassOn = new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xffd58a, emissiveIntensity: 1.0, roughness: 0.35, side: THREE.DoubleSide });
+const sconceG = new THREE.Group(); scene.add(sconceG);
+scene.updateMatrixWorld(true);
+FIXTURES.filter(f => f.k === 'sc' || f.k === 'ex').forEach(f => {
+  const [nx, nz] = f.c.fx.find(q => q[0] === f.lv && q[2] === f.x && q[3] === f.z)[4], ex = f.k === 'ex';
+  // EX1 (drawn on both the 1st floor and basement plans, beside the stoop) lights the way down to the under-stoop entry
+  const low = ex && f.lv === 'first' && f.z > ZFE + 0.3;
+  const y = low ? GRADE_F + 6.5 : elFloor(f.lv, f.x, f.z) + (ex ? 6.75 : SC_H[f.c.id] || 6.0);
+  // the front-door pair is drawn at the jambs; mount them on the brownstone either side of the opening
+  const fx = f.lv === 'first' && f.z > ZF && f.x > DX0 - 0.1 && f.x < DX1 + 0.1 ? (f.x < (DX0 + DX1) / 2 ? DX0 - 0.45 : DX1 + 0.45) : f.x;
+  // find the wall behind the symbol
+  ray.set(new THREE.Vector3(fx + nx * 0.6, y, f.z + nz * 0.6), new THREE.Vector3(-nx, 0, -nz)); ray.far = 2.5;
+  const hit = ray.intersectObjects([G.structure, G.exterior], true).find(h => h.object.isMesh && h.object.material !== M.glass && h.object.material !== M.poche);
+  const d = hit ? hit.distance - 0.6 : 0.4, wx = fx - nx * d, wz = f.z - nz * d;
+  const g = new THREE.Group(); g.position.set(wx, y, wz); g.rotation.y = Math.atan2(nx, nz); sconceG.add(g);   // local +z = out of the wall
+  const mesh = (geo, mat, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = false; g.add(m); return m; };
+  if (ex) {
+    mesh(new THREE.BoxGeometry(0.32, 0.5, 0.04), scBronze, 0, 0, 0.02);
+    mesh(new THREE.BoxGeometry(0.4, 0.06, 0.34), scBronze, 0, 0.36, 0.2);
+    mesh(new THREE.BoxGeometry(0.34, 0.05, 0.3), scBronze, 0, -0.33, 0.2);
+    f.shade = mesh(new THREE.BoxGeometry(0.3, 0.62, 0.26), scGlassOff, 0, 0.01, 0.2);
+  } else {
+    const back = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 24), scBronze, 0, 0, 0.025); back.rotation.x = Math.PI / 2;
+    mesh(new THREE.BoxGeometry(0.05, 0.05, 0.28), scBronze, 0, 0, 0.17);
+    f.shade = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.5, 24, 1, true), scGlassOff, 0, 0.05, 0.38);
+    [-0.2, 0.3].forEach(py => mesh(new THREE.CylinderGeometry(0.185, 0.185, 0.045, 24), scBronze, 0, py, 0.38));   // bronze rims
+  }
+});
 const LV_SHORT = { cellar: 'Cellar', basement: 'Basement', first: '1st floor', second: '2nd floor' };
 const elecLayer = document.getElementById('elecLayer'), elecCard = document.getElementById('elecCard'), elecBody = document.getElementById('elecBody');
 const GANG_COLORS = ['#d9822b', '#2f7fd0', '#3a9a5b', '#b0479a'];
@@ -2569,7 +2604,7 @@ function renderElecCard() {
 function refreshPlates() { plates.forEach(p => p.el.querySelectorAll('i').forEach((i, k) => i.classList.toggle('on', p.gangs[k].on))); }
 function setCircuit(c, on) {
   c.on = on;
-  c.fixtures.forEach(f => { f.fills.forEach(m => { m.material = on ? elOn : elOff; }); f.pool.visible = on; });
+  c.fixtures.forEach(f => { f.fills.forEach(m => { m.material = on ? elOn : elOff; }); f.pool.visible = on; if (f.shade) f.shade.material = on ? scGlassOn : scGlassOff; });
   refreshPlates(); renderElecCard(); invalidate();
 }
 function selectPlate(p) {
