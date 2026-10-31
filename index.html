@@ -653,10 +653,9 @@ B(5.55, 6.283, 0.7, 7.85, 36.64, 36.68, M.glass, { parent: G.glass, shadow: fals
 B(2.07, 2.24, 0, 7.8, 33.0, 36.36, M.door101, { collide: true });
 B(2.04, 2.27, 3.4, 7.0, 33.45, 35.9, M.glassDark);
 cyl(2.36, 33.35, 3.45, 3.55, 0.05, M.steel);
-// coat hooks + bench (per plan note)
-B(XL, XL + 0.92, 0, 1.5, 36.95, 40.2, M.veneer, { collide: true });           // 11" bench on the west side (A-603.00)
-B(7.728 - 1.25, 7.728, 0, 1.5, 36.95, 40.2, M.veneer, { collide: true });      // 1'-3" bench on the east side
-for (let i = 0; i < 3; i++) { cyl(XL + 0.12, 37.6 + i * 0.9, 5.3, 5.5, 0.05, M.steel); cyl(7.728 - 0.12, 37.6 + i * 0.9, 5.3, 5.5, 0.05, M.steel); }
+// coat hooks + bench on the east wall only (plan note leader, A-100 and DD plan)
+B(7.728 - 1.25, 7.728, 0, 1.5, 36.95, 40.2, M.veneer, { collide: true });      // 1'-3" bench
+for (let i = 0; i < 3; i++) cyl(7.728 - 0.12, 37.6 + i * 0.9, 5.3, 5.5, 0.05, M.steel);
 
 // Front double door 100 (historic pattern) + arched transom
 [[DX0 + 0.03, -0.96], [DX1 - 0.03, -Math.PI / 2]].forEach(([hx, ang]) => {   // shown open into the vestibule
