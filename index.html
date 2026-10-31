@@ -2207,7 +2207,7 @@ function placeTags(w, h) {
   });
 }
 
-// ---------- Dimensions inside a room (walking or the walkthrough, with Dimensions on) ----------
+// ---------- Dimensions inside a room (walking or the walkthrough, with Dimensions on), and for every room in plan ----------
 // The room you stand in gets wall-to-wall dimension lines just above the floor along all four walls, floor-to-ceiling
 // lines in two opposite corners (both ends of a sloped ceiling), labels on each, and a card with its size. Rectangles
 // are the finished faces from the plans; the wall sizes and the card read the same strings as the room tags.
@@ -2258,21 +2258,31 @@ const levelAtY = y => y < CEL_CEIL ? 'cellar' : y < 0 ? 'basement' : y < FF ? 'f
 const roomAt = (x, y, z) => { const lv = levelAtY(y); return ROOM_DIMS.find(r => r.lv === lv && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || null; };
 const dimGroup = new THREE.Group(); dimGroup.visible = false; scene.add(dimGroup);
 const dimMat = new THREE.MeshBasicMaterial({ color: 0xc23d24, depthWrite: false, transparent: true, opacity: 0.95 });   // depth-tested: railings and walls hide the lines behind them
+const dimMatPlan = new THREE.MeshBasicMaterial({ color: 0xc23d24, depthTest: false, depthWrite: false, transparent: true, opacity: 0.9 });   // plan: over everything, like the drawing
 const dimLayer = document.getElementById('dimLabels'), dimCard = document.getElementById('dimCard');
 let dimRoom = null, dimLabels = [];
+function clearDims() { dimGroup.children.forEach(m => m.geometry.dispose()); dimGroup.clear(); dimLayer.textContent = ''; dimLabels = []; occDirty = true; }
 function buildRoomDims(r) {
-  dimRoom = r; occDirty = true;
-  dimGroup.children.forEach(m => m.geometry.dispose()); dimGroup.clear(); dimLayer.textContent = ''; dimLabels = [];
+  dimRoom = r; clearDims();
   dimGroup.visible = !!r; dimCard.hidden = !r;
-  if (!r) return;
-  const bar = (x0, x1, y0, y1, z0, z1) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), dimMat); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); m.renderOrder = 20; dimGroup.add(m); };
+  if (r) addRoomDims(r, false);
+}
+// Plan view: every room on the level, one width and one depth each (plus its extra runs), drawn heavier to read from above
+function buildPlanDims(lv) {
+  dimRoom = { plan: lv }; clearDims();
+  dimGroup.visible = true; dimCard.hidden = true;
+  const done = new Set();
+  ROOM_DIMS.forEach(r => { if (r.lv === lv && !done.has(r.t)) { done.add(r.t); addRoomDims(r, true); } });
+}
+function addRoomDims(r, plan) {
+  const bar = (x0, x1, y0, y1, z0, z1) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), plan ? dimMatPlan : dimMat); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); m.renderOrder = 20; dimGroup.add(m); };
   const label = (text, x, y, z, cls) => { const el = document.createElement('div'); el.className = 'dlab' + (cls ? ' ' + cls : ''); el.textContent = text; dimLayer.appendChild(el); dimLabels.push({ el, v: new THREE.Vector3(x, y, z) }); };
-  const [x0, x1, z0, z1] = r.box || [r.x0, r.x1, r.z0, r.z1], ly = r.ly != null ? r.ly : r.f + 0.06, w = 0.035, e = Math.min(0.45, (x1 - x0) / 6, (z1 - z0) / 6), tk = 0.22;
+  const [x0, x1, z0, z1] = r.box || [r.x0, r.x1, r.z0, r.z1], ly = r.ly != null ? r.ly : r.f + 0.06, w = plan ? 0.09 : 0.035, e = Math.min(plan ? 0.7 : 0.45, (x1 - x0) / 6, (z1 - z0) / 6), tk = plan ? 0.3 : 0.22;
   const dim = DIMS[r.lv + '|' + r.t] || '', [wd, clg] = dim.split(' · clg '), [ws, ds] = (wd || '').split(' × ');
   // runs: east-west { z, a, b, text } and north-south { x, a, b, text }, each with end ticks
   const ew = [], ns = [];
-  (r.zs || [z0 + e, z1 - e]).forEach(z => ew.push({ z, a: x0, b: x1, text: ws || ftIn(x1 - x0) }));
-  (r.xs || [x0 + e, x1 - e]).forEach(x => ns.push({ x, a: z0, b: z1, text: ds || ftIn(z1 - z0) }));
+  (r.zs || [z0 + e, z1 - e]).slice(0, plan ? 1 : 2).forEach(z => ew.push({ z, a: x0, b: x1, text: ws || ftIn(x1 - x0) }));
+  (r.xs || [x0 + e, x1 - e]).slice(0, plan ? 1 : 2).forEach(x => ns.push({ x, a: z0, b: z1, text: ds || ftIn(z1 - z0) }));
   (r.chains || []).forEach(c => {
     const alongX = Array.isArray(c.x);
     (alongX ? c.x : c.z).forEach(([a, b, pre]) => (alongX ? ew : ns).push(Object.assign(alongX ? { z: c.z } : { x: c.x }, { a, b, text: (pre || '') + ftIn(b - a) })));
@@ -2290,8 +2300,9 @@ function buildRoomDims(r) {
     cuts.forEach(cz => { bar(x - w / 2, x + w / 2, ly, ly + w, s0, cz - gap); s0 = cz + gap; });
     bar(x - w / 2, x + w / 2, ly, ly + w, s0, b);
     [a + 0.02, b - 0.02].forEach(z => bar(x - tk, x + tk, ly, ly + w, z - w / 2, z + w / 2));
-    label(text, x, ly, (a + b) / 2);
+    label(text, x, ly, plan ? a + (b - a) * 0.3 : (a + b) / 2);   // in plan, clear of the room tag at the centre
   });
+  if (plan) return;
   // floor to ceiling, tucked into two opposite corners clear of the floor lines
   (r.v || [[x0 + 0.08, z0 + 0.08], [x1 - 0.08, z1 - 0.08]]).forEach(([x, z, fy]) => {
     const yb = fy != null ? fy : r.f, yt = typeof r.c === 'function' ? r.c(z) : r.c;
@@ -2303,17 +2314,20 @@ function buildRoomDims(r) {
   dimCard.innerHTML = `<b>${r.t}</b>${wd || ftIn(x1 - x0) + ' × ' + ftIn(z1 - z0)}${clg ? ' · clg ' + clg : ''}`;
 }
 function updateRoomDims() {
+  if (dimsOn() && mode === 'orbit' && activeView === 'plan' && level !== 'house') { if (!(dimRoom && dimRoom.plan === level)) buildPlanDims(level); return; }
+  if (dimRoom && dimRoom.plan) buildRoomDims(null);
   const on = dimsOn() && (mode === 'walk' || mode === 'tour'), p = camera.position;
   let r = on ? roomAt(p.x, p.y, p.z) : null;
   if (r && dimRoom && r.t === dimRoom.t && r.lv === dimRoom.lv) r = dimRoom;   // an L-shaped room's two halves read as one
   if (r !== dimRoom) buildRoomDims(r);
 }
-function occludeDimLabels() {   // like the room tags: a label whose point sits behind a wall or rail stays hidden
+function occludeDimLabels() {   // like the room tags: a label whose point sits behind a wall or rail stays hidden (not in plan)
+  if (dimRoom.plan) { dimLabels.forEach(d => { d.hiddenBehind = false; }); return; }
   const objs = [G.structure, G.exterior, G.kitchen, G.millwork].concat(seeInside ? [] : [G.doors]);
   dimLabels.forEach(d => {
     const dir = d.v.clone().sub(camera.position), dist = dir.length();
     ray.set(camera.position, dir.normalize()); ray.far = Math.max(0.01, dist - 0.4);
-    d.hiddenBehind = ray.intersectObjects(objs, true).some(h => h.object.isMesh && h.object.material !== M.glass && h.object.material !== M.poche && h.object.parent.visible);
+    d.hiddenBehind = ray.intersectObjects(objs, true).some(h => h.object.isMesh && h.point.y < cutPlane.constant && h.object.material !== M.glass && h.object.material !== M.poche && h.object.parent.visible);
   });
 }
 function placeDimLabels(w, h) {
@@ -2324,6 +2338,15 @@ function placeDimLabels(w, h) {
     if (tmpV.z > 1 || tmpV.x < -1.05 || tmpV.x > 1.05 || tmpV.y < -1.05 || tmpV.y > 1.05) { d.el.style.display = 'none'; return; }
     d.el.style.display = '';
     d.el.style.transform = `translate(-50%,-50%) translate(${((tmpV.x + 1) / 2 * w).toFixed(1)}px,${((1 - tmpV.y) / 2 * h).toFixed(1)}px)`;
+  });
+  if (!dimRoom.plan) return;
+  // plan: a size that would sit on a room tag or on another size is left off (its line still shows; the tag carries the size)
+  const taken = tagLayer.hidden ? [] : [...tagLayer.children].filter(el => el.style.display !== 'none').map(el => el.getBoundingClientRect());
+  const hit = (p, q) => p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom;
+  dimLabels.forEach(d => {
+    if (d.el.style.display === 'none') return;
+    const r = d.el.getBoundingClientRect();
+    if (taken.some(q => hit(r, q))) d.el.style.display = 'none'; else taken.push(r);
   });
 }
 
