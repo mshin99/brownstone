@@ -86,9 +86,10 @@ hr.r { border: 0; border-top: 1px solid var(--rule); margin: 0; }
 .viewbar {
   left: 50%; transform: translateX(-50%);
   bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 8px 10px; width: max-content; max-width: calc(100vw - 32px);
 }
+.vrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; }
 .group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; }
 .group .label-xs { margin-right: 4px; }
 button.v, button.ic {
@@ -289,36 +290,42 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 </div>
 
 <nav class="overlay card viewbar" aria-label="Views">
-  <div class="group" role="group" aria-label="Go to a room" id="walkGroup">
-    <label class="label-xs" for="roomSel">Go to</label>
-    <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
-    <button class="v" id="wideBtn" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
-    <button class="v" id="dimsBtn" aria-pressed="false" title="Room labels with sizes and ceiling heights, and dimension lines inside (M)">Dimensions</button>
-    <button class="v" id="seeBtn" aria-pressed="false" title="Make closet and cabinet doors see-through to show the shelves, rods and drawers behind them (C)">See inside</button>
-    <button class="v" id="elecBtn" aria-pressed="false" title="Lights, switches and outlets on the plan; pick a switch plate to work its switches (E)">Electrical</button>
+  <div class="vrow">
+    <div class="group" role="group" aria-label="View">
+      <span class="label-xs">View</span>
+      <button class="v" data-view="aerial" aria-pressed="true">Street side</button>
+      <button class="v" data-view="garden" aria-pressed="false">Garden side</button>
+      <button class="v" data-view="plan" aria-pressed="false">Plan</button>
+      <button class="v" data-view="interior" aria-pressed="false" title="Walk inside, at eye level">Interior</button>
+    </div>
+    <span class="sep" aria-hidden="true"></span>
+    <div class="group" role="group" aria-label="Level">
+      <span class="label-xs">Level</span>
+      <button class="v" data-lv="house" aria-pressed="false" title="All levels; on the street and garden views only">Whole house</button>
+      <button class="v" data-lv="second" aria-pressed="false">2nd</button>
+      <button class="v" data-lv="first" aria-pressed="true">1st</button>
+      <button class="v" data-lv="basement" aria-pressed="false">Basement</button>
+      <button class="v" data-lv="cellar" aria-pressed="false">Cellar</button>
+    </div>
   </div>
-  <span class="sep" aria-hidden="true" id="walkSep"></span>
-  <div class="group" role="group" aria-label="Level">
-    <span class="label-xs">Level</span>
-    <button class="v" data-lv="cellar" aria-pressed="false">Cellar</button>
-    <button class="v" data-lv="basement" aria-pressed="false">Basement</button>
-    <button class="v" data-lv="first" aria-pressed="true">1st</button>
-    <button class="v" data-lv="second" aria-pressed="false">2nd</button>
-    <button class="v" data-lv="house" aria-pressed="false">Whole house</button>
+  <div class="vrow">
+    <div class="group" role="group" aria-label="Show">
+      <span class="label-xs">Show</span>
+      <button class="v" id="dimsBtn" aria-pressed="false" title="Room labels with sizes and ceiling heights, and dimension lines inside (M)">Dimensions</button>
+      <button class="v" id="seeBtn" aria-pressed="false" title="Make closet and cabinet doors see-through to show the shelves, rods and drawers behind them (C)">See inside</button>
+      <button class="v" hidden id="elecBtn" aria-pressed="false" title="Lights, switches and outlets; pick a switch plate to work its switches (E)">Electrical</button>
+    </div>
+    <div class="group" role="group" aria-label="Inside" id="walkGroup" hidden>
+      <label class="label-xs" for="roomSel">Room</label>
+      <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
+      <button class="v" id="wideBtn" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
+    </div>
+    <span class="sep" aria-hidden="true"></span>
+    <div class="group" role="group" aria-label="Guided walkthrough">
+      <button class="v tourbtn" id="tourBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Walkthrough</button>
+    </div>
+    <button class="ic" id="layersBtn" aria-controls="layers">Info</button>
   </div>
-  <span class="sep" aria-hidden="true"></span>
-  <div class="group" role="group" aria-label="Overview">
-    <span class="label-xs">View</span>
-    <button class="v" data-view="aerial" aria-pressed="true">Street side</button>
-    <button class="v" data-view="garden" aria-pressed="false">Garden side</button>
-    <button class="v" data-view="plan" aria-pressed="false">Plan</button>
-    <button class="v" data-view="interior" aria-pressed="false" title="Walk inside, at eye level">Interior</button>
-  </div>
-  <span class="sep" aria-hidden="true"></span>
-  <div class="group" role="group" aria-label="Guided walkthrough">
-    <button class="v tourbtn" id="tourBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Walkthrough</button>
-  </div>
-  <button class="ic" id="layersBtn" aria-controls="layers">Info</button>
 </nav>
 
 <div class="overlay card tourbar" id="tourbar" role="group" aria-label="Walkthrough player" hidden>
@@ -1931,7 +1938,16 @@ window.addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'm') setDims(!dimsOn());
   if (e.key.toLowerCase() === 'c') setSeeInside(!seeInside);
 });
-const walkGroup = document.getElementById('walkGroup'), walkSep = document.getElementById('walkSep');
+// Controls follow the view: Whole house only on the street and garden views; Electrical only in plan; room picker and
+// lens only inside; Dimensions only with one level showing.
+const walkGroup = document.getElementById('walkGroup'), houseBtn = document.querySelector('button.v[data-lv="house"]');
+function updateControls() {
+  const ov = mode === 'orbit' && (activeView === 'aerial' || activeView === 'garden');
+  houseBtn.hidden = !ov;
+  walkGroup.hidden = mode !== 'walk';
+  document.getElementById('dimsBtn').hidden = level === 'house';
+  document.getElementById('elecBtn').hidden = !(mode === 'orbit' && activeView === 'plan');
+}
 function setLevel(lv, quiet) {
   level = lv; const L = LEVELS[lv];
   header(lv);
@@ -1944,6 +1960,7 @@ document.querySelectorAll('button.v[data-lv]').forEach(b => b.addEventListener('
 document.querySelectorAll('button.v[data-view]').forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.view;
   if ((v === 'aerial' || v === 'garden') && level !== 'house') setLevel('house', true);   // the street and garden views show the whole house
+  if (v === 'plan' && level === 'house') setLevel('first', true);                          // plans are per floor
   go(v);
 }));
 
@@ -2167,7 +2184,7 @@ TAGS.forEach(d => {
   else el.style.cursor = 'default';
   tagLayer.appendChild(el); d.el = el; d.vec = new THREE.Vector3(...d.p);
 });
-function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level === 'house' || !labelsOn; occDirty = true; updateElec(); }
+function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level === 'house' || !labelsOn; occDirty = true; updateControls(); updateElec(); }
 const tmpV = new THREE.Vector3(), ray = new THREE.Raycaster();
 // hide a tag when solid geometry below the section cut stands between it and the camera (run once the camera settles)
 function updateOcclusion() {
@@ -2278,7 +2295,7 @@ function placeDimLabels(w, h) {
 // strip cellar strip light, lin linear light (extra: [x1, z1])
 const CIRCUITS = {
   // first floor
-  stairUp: { name: 'Stair sconces, 1st to 2nd', d: 'B.3 at the foot and head of the stair', fx: [['first', 'sc', 1.12, 13.61, [1, 0]], ['second', 'sc', 1.12, 14.51, [1, 0]]] },
+  stairUp: { name: 'Stair sconces, 1st to 2nd', d: 'B.3 at the foot (1st floor, front) and head (2nd floor) of the stair up', fx: [['first', 'sc', 1.12, 31.44, [1, 0]], ['second', 'sc', 1.12, 14.51, [1, 0]]] },
   exRear1: { name: 'Rear deck sconces', d: '2 × EX2 on the rear wall', fx: [['first', 'ex', 1.17, -0.3, [0, -1]], ['first', 'ex', 18.71, -0.3, [0, -1]]] },
   liv: { name: 'Living downlights', d: '2 × A and 2 × A2 adjustable', fx: [['first', 'dl', 7.17, 4.33], ['first', 'dl', 7.17, 12.99], ['first', 'adj', 15.37, 4.33], ['first', 'adj', 15.37, 12.99]] },
   c6r: { name: 'Living ceiling light', d: 'C.6', fx: [['first', 'clg', 11.03, 8.53, 0.75]] },
@@ -2289,7 +2306,7 @@ const CIRCUITS = {
   kUw: { name: 'Under-shelf lights', d: 'U under the open shelf, sink run and peninsula', fx: [['first', 'lin', 7.9, 17.07, [13.72, 17.07]], ['first', 'lin', 7.9, 17.07, [7.9, 25.1]]] },
   kUe: { name: 'Under-cabinet lights, cooktop', d: 'U either side of the hood', fx: [['first', 'lin', 18.55, 21.88, [18.55, 23.42]], ['first', 'lin', 18.55, 26.03, [18.55, 27.58]]] },
   vest: { name: 'Vestibule ceiling light', d: 'C.5', fx: [['first', 'clg', 4.05, 38.82, 0.75]] },
-  stairDn: { name: 'Stair sconces, 1st to basement', d: 'B.3 at the head and foot of the stair', fx: [['first', 'sc', 1.12, 31.44, [1, 0]], ['basement', 'sc', 1.12, 3.22, [1, 0]]] },
+  stairDn: { name: 'Stair sconces, 1st to basement', d: 'B.3 at the head (1st floor, living end) and foot (basement) of the stair down', fx: [['first', 'sc', 1.12, 13.61, [1, 0]], ['basement', 'sc', 1.12, 3.22, [1, 0]]] },
   exFront: { name: 'Front door + stoop sconces', d: '2 × EX4 at the doors, EX1 on the stoop', fx: [['first', 'ex', 1.48, 42.1, [0, 1]], ['first', 'ex', 5.41, 42.1, [0, 1]], ['first', 'ex', 7.18, 42.53, [0, 1]]] },
   // basement
   exRearB: { name: 'Garden sconces', d: 'EX3 and 2 × EX2 on the rear wall', fx: [1.13, 7.73, 18.86].map(x => ['basement', 'ex', x, -0.3, [0, -1]]) },
@@ -2315,7 +2332,7 @@ const CIRCUITS = {
   guest: { name: 'Guest bedroom ceiling light', d: 'C.9', fx: [['second', 'clg', 13.83, 5.68, 0.92]] },
   gbA: { name: 'Guest bath downlights', d: '2 × A.1', fx: [['second', 'wet', 13.98, 11.95], ['second', 'wet', 10.16, 13.31]] },
   gbB: { name: 'Guest bath sconce', d: 'B.2', fx: [['second', 'sc', 13.2, 14.77, [-1, 0]]] },
-  hatch: { name: 'Skylight / hatch H.2', d: 'switch at the H.2 tag; no light on it', fx: [] },
+  hatch: { name: 'Stair skylight device H.2', d: 'H.2 at the new stair skylight (type not scheduled in the DD set); no light on it', fx: [] },
   b5: { name: 'Bedroom sconces', d: '2 × B.5', fx: [['second', 'sc', 1.12, 30.05, [1, 0]], ['second', 'sc', 1.12, 38.57, [1, 0]]] },
   c8: { name: 'Primary bedroom ceiling light', d: 'C.8', fx: [['second', 'clg', 6.25, 34.29, 0.92]] },
   wic: { name: 'Walk-in closet downlights', d: '4 × A', fx: [29.54, 32.7, 35.87, 39.03].map(z => ['second', 'dl', 15.62, z]) },
@@ -2328,14 +2345,14 @@ const CIRCUITS = {
 };
 // plate: [level, place, face (into the room), switch height, [[x, z, circuit], ...]]
 const PLATES = [
-  ['first', 'Stair hall, living end', [0, -1], 4, [[2.42, 15.69, 'stairUp'], [2.74, 15.69, 'exRear1'], [3.05, 15.69, 'liv'], [3.35, 15.69, 'hall1']]],
+  ['first', 'Stair hall, head of the basement stair', [0, -1], 4, [[2.42, 15.69, 'stairDn'], [2.74, 15.69, 'exRear1'], [3.05, 15.69, 'liv'], [3.35, 15.69, 'hall1']]],
   ['first', 'Living, east wall', [-1, 0], 4, [[19.42, 14.58, 'liv'], [19.42, 15.21, 'c6r']]],
   ['first', 'Kitchen end, dining side', [0, 1], 4, [[7.46, 29.7, 'front'], [7.89, 29.7, 'kE'], [8.49, 29.7, 'kA']]],
   ['first', 'Kitchen, tall pantry', [0, -1], 3.75, [[8.8, 25.15, 'kUw']]],
   ['first', 'Kitchen, cooktop wall', [-1, 0], 3.75, [[18.93, 26.65, 'kUe']]],
-  ['first', 'Hall by the basement stair', [1, 0], 4, [[0.56, 33.0, 'stairDn'], [0.56, 33.6, 'hall1'], [0.56, 34.18, 'vest']]],
+  ['first', 'Stair hall, foot of the stair up', [1, 0], 4, [[0.56, 33.0, 'stairUp'], [0.56, 33.6, 'hall1'], [0.56, 34.18, 'vest']]],
   ['first', 'Vestibule', [1, 0], 4, [[0.56, 38.82, 'vest'], [0.56, 39.25, 'exFront']]],
-  ['basement', 'Hall, foot of the stair', [0, 1], 4, [[1.06, 1.36, 'exRearB'], [1.37, 1.36, 'stairDn'], [1.69, 1.36, 'hallB']]],
+  ['basement', 'Hall, foot of the stair from the 1st floor', [0, 1], 4, [[1.06, 1.36, 'exRearB'], [1.37, 1.36, 'stairDn'], [1.69, 1.36, 'hallB']]],
   ['basement', 'Family room', [1, 0], 4, [[8.27, 13.15, 'fam']]],
   ['basement', 'Bathroom', [0, -1], 4, [[9.08, 19.86, 'bathB'], [9.33, 19.86, 'bathA'], [9.58, 19.86, 'sauna']]],
   ['basement', 'Storage', [1, 0], 4, [[8.27, 21.69, 'stor']]],
@@ -2345,7 +2362,7 @@ const PLATES = [
   ['cellar', 'Foot of the stair', [1, 0], 4, [[0.85, 19.46, 'cel']]],
   ['cellar', 'Mech room', [0, 1], 4, [[4.28, 32.53, 'mech']]],
   ['cellar', 'Storage room', [0, 1], 4, [[15.74, 32.53, 'celStor']]],
-  ['second', 'Head of the stair', [1, 0], 4, [[0.56, 12.12, 'office'], [0.56, 12.53, 'hall2'], [0.56, 13.12, 'stairUp']]],
+  ['second', 'Head of the stair from the 1st floor', [1, 0], 4, [[0.56, 12.12, 'office'], [0.56, 12.53, 'hall2'], [0.56, 13.12, 'stairUp']]],
   ['second', 'Guest bedroom', [0, -1], 4, [[9.84, 10.06, 'guest']]],
   ['second', 'Guest bath', [0, -1], 4, [[8.91, 15.9, 'gbA'], [9.3, 15.9, 'gbB']]],
   ['second', 'Hall, bedroom end', [0, -1], 4, [[3.32, 27.69, 'hatch'], [3.63, 27.69, 'hall2']]],
@@ -2369,20 +2386,20 @@ const elecGroup = new THREE.Group(); elecGroup.visible = false; scene.add(elecGr
 Object.values(ELV).forEach(g => elecGroup.add(g));
 const elFloor = (lv, x, z) => lv === 'cellar' ? (x > 3.58 && x < 17.66 && z > 2.9 && z < 28.1 ? CEL_LOW : CEL) : LEVELS[lv].y;
 const elInk = new THREE.MeshBasicMaterial({ color: 0x23272d, depthTest: false, depthWrite: false, transparent: true });
-const elOff = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false, transparent: true });
-const elOn = new THREE.MeshBasicMaterial({ color: 0xffc23d, depthTest: false, depthWrite: false, transparent: true });
+const elOff = new THREE.MeshBasicMaterial({ color: 0xc3c7cd, depthTest: false, depthWrite: false, transparent: true });
+const elOn = new THREE.MeshBasicMaterial({ color: 0xffc414, depthTest: false, depthWrite: false, transparent: true });
 const poolTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  r.addColorStop(0, 'rgba(255,222,140,0.95)'); r.addColorStop(0.4, 'rgba(255,205,105,0.55)'); r.addColorStop(1, 'rgba(255,190,80,0)');
+  r.addColorStop(0, 'rgba(255,214,120,1)'); r.addColorStop(0.35, 'rgba(255,190,80,0.75)'); r.addColorStop(0.7, 'rgba(255,170,60,0.3)'); r.addColorStop(1, 'rgba(255,160,50,0)');
   g.fillStyle = r; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
 })();
-const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
 const flat = (geo, mat, x, y, z, rot) => { const m = new THREE.Mesh(geo, mat); m.rotation.set(-Math.PI / 2, 0, rot || 0); m.position.set(x, y, z); m.renderOrder = 31; return m; };
-// a dusk wash over each floor so lit pools read against the unlit rooms
-const duskMat = new THREE.MeshBasicMaterial({ color: 0x0b1020, transparent: true, opacity: 0.42, depthWrite: false });
+// a night wash over each floor and out over the stoop, yard and street, so lit pools read against everything unlit
+const duskMat = new THREE.MeshBasicMaterial({ color: 0x070b18, transparent: true, opacity: 0.62, depthWrite: false });
 Object.entries(ELV).forEach(([lv, g]) => {
-  const [x0, x1, z0, z1] = LEVELS[lv].bounds, m = flat(new THREE.PlaneGeometry(x1 - x0 + 1, z1 - z0 + 1), duskMat, (x0 + x1) / 2, LEVELS[lv].y + 0.02, (z0 + z1) / 2);
+  const m = flat(new THREE.PlaneGeometry(70, 110), duskMat, 10, LEVELS[lv].y + 0.02, 21);
   m.renderOrder = 1; g.add(m);
 });
 const FIXTURES = [];
@@ -2404,7 +2421,7 @@ Object.entries(CIRCUITS).forEach(([id, c]) => {
       const [nx, nz] = e; disc(0.26); ring(0.26);
       g.add(flat(new THREE.PlaneGeometry(nz ? 0.5 : 0.06, nz ? 0.06 : 0.5), elInk, x - nx * 0.3, sy + 0.01, z - nz * 0.3));
       if (k === 'ex') g.add(flat(new THREE.CircleGeometry(0.08, 16), elInk, x, sy + 0.02, z));
-      pool = [3.8, 3.8];
+      pool = k === 'ex' ? [5, 5] : [3.8, 3.8];
     } else if (k === 'strip') {
       const m = flat(new THREE.PlaneGeometry(0.24, 0.62), elOff, x, sy, z, Math.PI / 4); g.add(m); f.fills.push(m);
       g.add(flat(new THREE.RingGeometry(0.3, 0.35, 4), elInk, x, sy + 0.01, z)); pool = [5.2, 5.2];
@@ -2519,7 +2536,7 @@ function selectPlate(p) {
 }
 document.getElementById('elecAllOff').addEventListener('click', () => Object.values(CIRCUITS).forEach(c => { if (c.on) setCircuit(c, false); }));
 function updateElec() {
-  const show = elecOn && mode === 'orbit' && level !== 'house';
+  const show = elecOn && mode === 'orbit' && activeView === 'plan' && level !== 'house';
   elecGroup.visible = show; legGroup.visible = show;
   Object.entries(ELV).forEach(([lv, g]) => { g.visible = lv === level; });
   elecLayer.hidden = !show; elecCard.hidden = !show;
@@ -2529,17 +2546,14 @@ function updateElec() {
 function setElec(on) {
   elecOn = on;
   document.getElementById('elecBtn').setAttribute('aria-pressed', String(on));
-  if (on && (mode !== 'orbit' || level === 'house')) {   // electrical reads per floor, best in plan
-    if (mode === 'tour') exitTour();
-    setLevel(level === 'house' ? 'first' : (mode === 'walk' ? walkLv : level), true); go('plan');
-  }
+  if (on && level === 'house') { setLevel('first', true); go('plan'); }   // electrical is per floor
   updateElec();
 }
 document.getElementById('elecBtn').addEventListener('click', () => setElec(!elecOn));
 window.addEventListener('keydown', e => {
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.key.toLowerCase() === 'e') setElec(!elecOn);
+  if (e.key.toLowerCase() === 'e' && mode === 'orbit' && activeView === 'plan') setElec(!elecOn);   // plan only
   if (e.key === 'Escape' && selPlate) selectPlate(null);
 });
 function placeElec(w, h) {
