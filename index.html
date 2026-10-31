@@ -242,7 +242,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
     <button class="v" id="wideBtn" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
     <button class="v" id="dimsBtn" aria-pressed="false" title="Room dimensions and ceiling heights (M)">Dimensions</button>
-    <button class="v" id="millBtn" aria-pressed="true" title="Show or hide cabinets, built-in closets and closet doors (C)">Cabinets</button>
+    <button class="v" id="seeBtn" aria-pressed="false" title="Make closet and cabinet doors see-through to show the shelves, rods and drawers behind them (C)">See inside</button>
   </div>
   <span class="sep" aria-hidden="true" id="walkSep"></span>
   <div class="group" role="group" aria-label="Level">
@@ -293,7 +293,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       </select>
       <button class="v" id="tWide" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
       <button class="v" id="tDims" aria-pressed="false" title="Room dimensions and ceiling heights (M)">Dimensions</button>
-      <button class="v" id="tMill" aria-pressed="true" title="Show or hide cabinets, built-in closets and closet doors (C)">Cabinets</button>
+      <button class="v" id="tSee" aria-pressed="false" title="Make closet and cabinet doors see-through to show the shelves, rods and drawers behind them (C)">See inside</button>
     </div>
     <div class="tourside">
       <span class="eye">Eye 5'-3½" · 5'-8" person</span>
@@ -357,7 +357,7 @@ const camera = new THREE.PerspectiveCamera(42, 1, 0.5, 450);
 camera.rotation.order = 'YXZ';
 
 const G = {};
-['structure', 'kitchen', 'millwork', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => { G[k] = new THREE.Group(); scene.add(G[k]); });
+['structure', 'kitchen', 'millwork', 'doors', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => { G[k] = new THREE.Group(); scene.add(G[k]); });
 
 // ---------- Materials ----------
 function std(color, rough, extra) { return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: 0 }, extra || {})); }
@@ -423,12 +423,12 @@ function boxGeo(w, h, d, unitUV) {
 }
 // [x0, x1, z0, z1] footprints the walker can't enter, per level
 const COL = { cellar: [], basement: [], first: [], second: [] }, FCOL = { cellar: [], basement: [], first: [], second: [] };
-const MCOL = { cellar: [], basement: [], first: [], second: [] };   // cabinets and closets: walkable while they're hidden
+const MCOL = { cellar: [], basement: [], first: [], second: [] };   // built-in cabinets and closets
 const colliders = COL.first, furnColliders = FCOL.first;
 const SOLIDS = [];   // world-space boxes, used to tell real corners from butt joints when drawing outlines
-const SOLID_LAYERS = new Set([G.structure, G.kitchen, G.millwork, G.furniture, G.exterior]);
-// Cabinets, built-in closets and closet doors go in G.millwork (the kitchen in G.kitchen) so they can be hidden together.
-// Inside millwork(() => { ... }) the box helpers default to that layer.
+const SOLID_LAYERS = new Set([G.structure, G.kitchen, G.millwork, G.doors, G.furniture, G.exterior]);
+// Built-in cabinets and closets go in G.millwork (the kitchen in G.kitchen); inside millwork(() => { ... }) the box helpers
+// default to that layer. Closet and cabinet doors go in G.doors, which "See inside" turns see-through.
 let DEF = null;
 function millwork(build) { DEF = G.millwork; try { build(); } finally { DEF = null; } }
 function B(x0, x1, y0, y1, z0, z1, mat, o) {
@@ -457,9 +457,10 @@ function extrudeXY(build, holes, z0, depth, mat, parent, poche) {
   const m = addMesh(new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false }), mat, parent, { poche });
   m.position.z = z0; return m;
 }
-// Polygon given as [z, y] points, extruded across x0..x1
-function prismZY(pts, x0, x1, mat, parent, poche) {
+// Polygon given as [z, y] points, extruded across x0..x1; holes are [z, y] polygons cut through it
+function prismZY(pts, x0, x1, mat, parent, poche, holes) {
   const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); pts.slice(1).forEach(p => s.lineTo(p[0], p[1]));
+  (holes || []).forEach(h => { const q = new THREE.Path(); q.moveTo(h[0][0], h[0][1]); h.slice(1).forEach(p => q.lineTo(p[0], p[1])); q.closePath(); s.holes.push(q); });
   const m = addMesh(new THREE.ExtrudeGeometry(s, { depth: x1 - x0, bevelEnabled: false }), mat, parent, { poche });
   m.rotation.y = -Math.PI / 2; m.position.x = x1; return m;
 }
@@ -718,19 +719,33 @@ B(DX0, DX1, -0.3, 0.008, ZF, 41.0, FLR(M.checker));
   body.push([zEnd, ySoffit(zEnd)], [zs - 1.0 / slope, 0]);
   prismZY(body, x0, 3.244, M.plaster, G.structure, true);
   // closet front / stringer wall on the open side, stepping with the treads, ending at the closet end wall
-  const zc = 15.83, wall = [[zc, 0], [zs - 0.05, 0]];
+  const zc = 15.83, wall = [[zc, -0.02], [zs - 0.05, -0.02]];
   for (let i = 1; i <= 16; i++) wall.push([zs - (i - 1) * t - 0.05, i * r - 0.12], [Math.max(zc, zs - i * t - 0.05), i * r - 0.12]);
   wall.push([zc, 16 * r - 0.12]);
-  prismZY(wall, 3.244, x1, M.plaster, G.structure, true);
+  const doorTop = z => Math.min(8.0, ySoffit(z) - 0.35), closetDoors = [[15.95, 18.6], [18.93, 21.6], [21.92, 25.1]];
+  prismZY(wall, 3.244, x1, M.plaster, G.structure, true, closetDoors.map(([a, b]) => [[a, 0], [b, 0], [b, doorTop(b)], [a, doorTop(a)]]));
   // closet end wall in line with the kitchen (faces the stair down) and the partitions between coat closet, shoe storage and storage
   B(x0, x1, 0, Math.min(CH, ySoffit(zc)), 15.71, zc, M.plaster, { poche: true });
   B(x0, 3.244, 0, ySoffit(18.83), 18.70, 18.83, M.plaster, { poche: true });
   B(x0, 3.244, 0, ySoffit(21.82), 21.69, 21.82, M.plaster, { poche: true });
+  B(x0, 3.244, 0, ySoffit(25.32), 25.22, 25.32, M.plaster, { poche: true });
   // painted wood closet doors with edge pulls, their tops following the stair (A-604.00 2B)
-  const doorTop = z => Math.min(8.0, ySoffit(z) - 0.35);
-  [[15.95, 18.6], [18.93, 21.6], [21.92, 25.1]].forEach(([a, b]) => {
-    prismZY([[a, 0.05], [a, doorTop(a)], [b, doorTop(b)], [b, 0.05]], x1, x1 + 0.03, M.trim, G.millwork, false);
-    B(x1 + 0.03, x1 + 0.07, 2.4, 3.4, b - 0.22, b - 0.18, M.steel, { shadow: false, parent: G.millwork });
+  closetDoors.forEach(([a, b]) => {
+    prismZY([[a, 0.05], [a, doorTop(a)], [b, doorTop(b)], [b, 0.05]], x1, x1 + 0.03, M.trim, G.doors, false);
+    B(x1 + 0.03, x1 + 0.07, 2.4, 3.4, b - 0.22, b - 0.18, M.steel, { shadow: false, parent: G.doors });
+  });
+  // inside (A-604.00 2B, doors open): the coat closet has a rod at 5'-6" under three fixed shelves; the shoe closet has
+  // six sloped shoe shelves under a flat top shelf; the storage closet has three adjustable shelves. Shelves stop where
+  // they meet the stair soffit
+  millwork(() => {
+    const shelf = (z0, z1, y) => B(x0 + 0.02, 3.23, y - 0.1, y, z0, Math.min(z1, zs - (y + 1.1) / slope), M.cab);
+    [6.06, 7.05, 8.13].forEach(y => shelf(15.83, 18.7, y));
+    const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, 18.7 - 15.83, 12), M.steel); rod.rotation.x = Math.PI / 2; rod.position.set(1.9, 5.53, (15.83 + 18.7) / 2);
+    [1.29, 2.07, 2.85, 3.64, 4.44, 5.23].forEach(y => {   // front edge 3" lower than the back
+      const m = addMesh(new THREE.BoxGeometry(2.6, 0.06, 21.69 - 18.83), M.cab); m.rotation.z = -0.1; m.position.set((x0 + 3.23) / 2, y - 0.16, (18.83 + 21.69) / 2);
+    });
+    shelf(18.83, 21.69, 5.78);
+    [1.03, 2.05, 3.08].forEach(y => shelf(21.82, 25.22, y));
   });
   // one baluster per tread + handrail 2'-11" above the nosings
   const RAIL = 2.9;
@@ -1089,12 +1104,28 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   wl(XL, 1.75, 39.46, ZF); wl(5.66, 7.83, 39.46, ZF);                                                                  // entry vestibule returns
   head(0.81, 3.56, 31.45, 31.86, 8.0); head(7.83, 8.25, 17.05, 19.71, 8.0); head(7.83, 8.25, 21.92, 25.42, 8.0); head(7.83, 8.25, 31.86, 35.61, 8.0);
   head(7.83, 8.25, ZR, 12.92, 8.0); head(13.41, 15.91, 19.88, 20.30, 7.05);
-  // closets under the stair from the first floor; the partition follows the stair soffit
+  // closets under the stair from the first floor (A-100.00 plan 02, A-601.00 1C): four bays behind painted wood doors
+  // with edge pulls, in a partition that follows the stair soffit. Inside, from the front of the house: the AV closet
+  // (a shelf at 5'-0" for the owner's AV rack, vacuum charging below), four adjustable shelves, two adjustable shelves,
+  // then a low empty bay; the shelf bays stand on a 4" toe kick
   {
-    const r = -BSMT / 14, t = 0.75, zTop = 11.83, soff = z => -((zTop - z) / t) * r - 1.0;
-    prismZY([[4.4, y0], [16.52, y0], [16.52, y1], [zTop, y1], [4.4, soff(4.4)]], 3.58, 3.73, M.plaster, G.structure, true);
-    B(XL, 3.58, y0, soff(8.45), 8.35, 8.45, M.plaster, { poche: true }); B(XL, 3.58, y0, y1, 12.35, 12.45, M.plaster, { poche: true });
-    [[4.6, 8.25, soff(8.25) - 0.25], [8.55, 12.25, Math.min(y0 + 6.8, soff(12.25) - 0.25)], [12.55, 16.4, y0 + 6.8]].forEach(([a, b, top]) => B(3.73, 3.76, y0 + 0.05, top, a, b, M.trim, { parent: G.millwork }));
+    const r = -BSMT / 14, t = 0.75, zTop = 11.83, soff = z => Math.min(y1, -((zTop - z) / t) * r - 1.0);
+    const bays = [[4.5, 7.52], [7.59, 10.51], [10.59, 13.51], [13.6, 16.45]], top = z => Math.min(y1 - 0.3, soff(z) - 0.15);
+    prismZY([[4.4, y0 - 0.02], [16.52, y0 - 0.02], [16.52, y1], [zTop, y1], [4.4, soff(4.4)]], 3.58, 3.73, M.plaster, G.structure, true,
+      bays.map(([a, b]) => [[a, y0], [b, y0], [b, top(b)], [a, top(a)]]));
+    [[7.52, 7.59], [10.51, 10.59], [13.51, 13.6]].forEach(([a, b]) => B(XL, 3.58, y0, soff(b), a, b, M.plaster, { poche: true }));
+    bays.forEach(([a, b], i) => {
+      prismZY([[a + 0.01, y0 + 0.05], [a + 0.01, top(a)], [b - 0.01, top(b)], [b - 0.01, y0 + 0.05]], 3.73, 3.76, M.trim, G.doors, false);
+      const pz = i ? a + 0.2 : b - 0.2;   // the low bay's pull goes on its tall edge
+      B(3.76, 3.8, y0 + 2.4, y0 + 3.4, pz - 0.02, pz + 0.02, M.steel, { shadow: false, parent: G.doors });
+    });
+    millwork(() => {
+      const shelf = (a, b, y) => B(XL + 0.02, 3.56, y0 + y - 0.1, y0 + y, a, b, M.cab);
+      shelf(13.6, 16.45, 5.1);
+      [1.1, 2.21, 3.31, 4.42].forEach(y => shelf(10.59, 13.51, y));
+      [1.35, 2.71].forEach(y => shelf(7.59, 10.51, y));
+      [[7.59, 10.51], [10.59, 13.51]].forEach(([a, b]) => B(XL, 3.5, y0, y0 + 0.33, a, b, M.cab));
+    });
     C.push([XL, 3.76, 4.4, 16.52], [XL, 3.6, ZR, 4.4]);
   }
   // doors per the door schedule (A-801.00), all 8'-0": B006 family room, full-width painted wood barn panels on the hall
@@ -1117,7 +1148,10 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   // bathroom (design deck p.4): 1'-6" linen closet with pull-out hamper, 3'-3" floating vanity (2'-9" stone top) under a
   // recessed medicine cabinet, wall-hung toilet, shower with a 2'-0" fixed glass panel and a 6'-8" hinged glass door
   millwork(() => {
-    B(8.41, 9.91, y0, y0 + 8.0, 15.21, 16.89, M.cab); B(8.47, 9.85, y0 + 0.15, y0 + 1.75, 16.89, 16.92, M.cab);
+    B(8.41, 9.91, y0, y0 + 1.85, 15.21, 16.89, M.cab); B(8.47, 9.85, y0 + 0.15, y0 + 1.75, 16.89, 16.92, M.cab);   // hamper
+    B(8.41, 8.47, y0 + 1.85, y0 + 8.0, 15.21, 16.89, M.cab); B(9.85, 9.91, y0 + 1.85, y0 + 8.0, 15.21, 16.89, M.cab); B(8.47, 9.85, y0 + 7.92, y0 + 8.0, 15.21, 16.89, M.cab);
+    [3.2, 4.45, 5.7, 6.9].forEach(y => B(8.47, 9.85, y0 + y - 0.06, y0 + y, 15.23, 16.85, M.cab));   // linen shelves (assumed: not drawn)
+    B(8.43, 9.89, y0 + 1.9, y0 + 7.97, 16.89, 16.92, M.cab, { parent: G.doors });
     B(9.91, 13.16, y0 + 0.5, y0 + 2.33, 15.21, 16.87, M.veneer); B(9.91, 13.16, y0 + 2.33, y0 + 2.75, 15.21, 16.92, M.marble);
     B(10.8, 12.26, y0 + 2.75, y0 + 2.76, 15.65, 16.6, M.porcelain, { shadow: false }); cyl(11.53, 15.45, y0 + 2.75, y0 + 3.3, 0.04, M.steel);
     B(10.63, 12.43, y0 + 3.5, y0 + 6.75, 15.21, 15.24, M.mirror);
@@ -1153,17 +1187,34 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     B(16.15, 17.2, fl + 0.6, fl + 2.6, 20.35, 21.1, M.steel); B(16.25, 17.1, fl + 2.6, fl + 2.78, 20.45, 21.0, M.stone);
     C.push([xb, 19.0, 20.3, 25.05], [13.41, xb, zb, 25.05], [xf, xb, zh, zb], [13.41, xf, zf, zb], [16.1, xb, 20.3, 21.15]);
   }
-  // storage (A-602.00 plan 02, 3A-3D): a U of shelves on standards: 2'-7 1/2" returns 1'-2" deep on the north and south
-  // walls either side of the door, and a 2'-0" deep run the length of the east wall in two sections
+  // storage (A-602.00 plan 02, 3A-3D): 2'-7 1/2" returns 1'-2" deep on the north and south walls either side of the door
+  // with adjustable shelves on standards from 1'-6" up; along the east wall, 2'-0" of hanging space: a rod at 5'-6" under
+  // two fixed 1'-3" shelves, in two sections
   millwork(() => { const xr = 10.875, xe = 11.0, zn = 21.47, zs2 = 25.88;
-    [0.5, 1.9, 3.3, 4.7, 6.1, 7.5].forEach(h => {
+    [1.73, 3.33, 4.68, 5.6, 6.55].forEach(h => {
       B(8.27, xr, y0 + h - 0.07, y0 + h, 20.32, zn, M.cab); B(8.27, xr, y0 + h - 0.07, y0 + h, zs2, 27.03, M.cab);
-      B(xe, 12.98, y0 + h - 0.07, y0 + h, 20.42, 26.92, M.cab);
     });
-    [[xr - 0.06, zn - 0.06], [xr - 0.06, zs2], [xe, 20.42], [xe, 23.64], [xe, 26.86]].forEach(([x, z]) => B(x, x + 0.06, y0, y0 + 7.6, z, z + 0.06, M.steel));
+    [[xr - 0.06, zn - 0.06], [xr - 0.06, zs2]].forEach(([x, z]) => B(x, x + 0.06, y0 + 1.5, y0 + 7.46, z, z + 0.06, M.steel));
+    [5.83, 6.84].forEach(h => B(11.73, 12.98, y0 + h - 0.07, y0 + h, 20.32, 27.03, M.cab));
+    B(11.73, 12.98, y0 + 5.83, y0 + 6.77, 23.64, 23.71, M.cab);
+    const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, 27.03 - 20.32, 12), M.steel); rod.rotation.x = Math.PI / 2; rod.position.set(12.0, y0 + 5.5, (20.32 + 27.03) / 2);
     MCOL.basement.push([8.25, xr, 20.3, zn], [8.25, xr, zs2, 27.05], [xe, 13.0, 20.3, 27.05]); });
-  // gym closet with sliding doors
-  B(13.45, 16.2, y0, y0 + 7.0, 26.98, 27.06, M.trim, { parent: G.millwork }); B(16.2, 19.0, y0, y0 + 7.0, 27.06, 27.14, M.trim, { parent: G.millwork });
+  // gym closet (A-602.00 2A, 2B): adjustable shelves in the west half; three drawers to 3'-0", a rod at 6'-3" and a fixed
+  // hat shelf in the east half; two painted wood sliding doors on a track at 7'-11"
+  millwork(() => {
+    const z0 = 25.46, zf = 26.94, xm = 16.21;
+    B(xm - 0.04, xm + 0.04, y0, y0 + 7.9, z0, zf, M.cab);
+    [0.28, 1.39, 2.46, 3.43, 4.61, 5.74, 6.84].forEach(y => B(13.45, xm - 0.04, y0 + y - 0.07, y0 + y, z0 + 0.02, z0 + 1.38, M.cab));
+    B(xm + 0.04, 19.0, y0, y0 + 0.28, z0, zf - 0.1, M.black, { shadow: false });
+    B(xm + 0.04, 19.0, y0 + 0.28, y0 + 2.98, z0, zf, M.cab); B(xm + 0.04, 19.0, y0 + 2.98, y0 + 3.06, z0, zf, M.cab);
+    [[0.28, 1.18], [1.18, 2.08], [2.08, 2.98]].forEach(([v0, v1]) => front('z', zf, 1, xm + 0.04, 19.0, y0 + v0, y0 + v1, M.cab, 'top', undefined, G.millwork));
+    B(xm + 0.04, 19.0, y0 + 6.62, y0 + 6.72, z0 + 0.02, z0 + 1.3, M.cab);
+    const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, 19.0 - xm - 0.08, 12), M.steel); rod.rotation.z = Math.PI / 2; rod.position.set((xm + 19.04) / 2, y0 + 6.25, z0 + 0.75);
+    B(13.41, 19.0, y0 + 7.9, y0 + 8.0, 26.96, 27.16, M.steel);
+  });
+  B(13.41, 19.0, y0 + 8.0, y1, 26.96, 27.16, M.plaster);
+  B(13.45, 16.25, y0 + 0.02, y0 + 7.88, 26.98, 27.06, M.trim, { parent: G.doors }); B(16.17, 19.0, y0 + 0.02, y0 + 7.88, 27.06, 27.14, M.trim, { parent: G.doors });
+  B(13.65, 13.69, y0 + 3.0, y0 + 4.0, 27.06, 27.09, M.steel, { shadow: false, parent: G.doors }); B(18.76, 18.8, y0 + 3.0, y0 + 4.0, 27.14, 27.17, M.steel, { shadow: false, parent: G.doors });
   MCOL.basement.push([13.41, 19.0, 25.46, 27.14]);
   // gym: Eleiko Prestera half rack (51" deep, 77" wide over the plate horns, 93" tall) against the east wall in its
   // SVR insert platform (small, 3085517: 2653 x 2465 x 102 mm), bar running front to back so squats, deadlifts and bench have 8' of bar clearance; flat bench
@@ -1330,15 +1381,22 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
     [[0.4, 1.18], [1.18, 2.01], [2.01, 2.88]].forEach(([v0, v1]) => front('z', z0 + 0.32, -1, x0, x1, y0 + v0, y0 + v1, M.cab, 'top', undefined, G.millwork));
     B(x0, x1, y0 + 6.29, y0 + 6.42, z0 + 0.3, z1, M.cab); B(x0, x1, y0 + 7.74, y0 + 7.86, z0 + 0.3, z1, M.cab);
     const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, x1 - x0, 12), M.steel); rod.rotation.z = Math.PI / 2; rod.position.set((x0 + x1) / 2, y0 + 6.0, 11.1);
-    B(x0 - 3.1, x0 - 0.05, y0 + 0.05, y0 + 8.9, 9.96, 10.05, M.trim); B(x0 - 3.2, x1, y0 + 8.95, y0 + 9.03, 9.95, 10.09, M.steel);
+    B(x0 - 3.1, x0 - 0.05, y0 + 0.05, y0 + 8.9, 9.96, 10.05, M.trim, { parent: G.doors }); B(x0 - 3.2, x1, y0 + 8.95, y0 + 9.03, 9.95, 10.09, M.steel);
   });
   // guest bath: toilet, vanity, shower
   fx(9.4, y0, 10.71, 0, wallToilet);
   fx(13.79, y0, 14.78, -Math.PI / 2, g => vanity(g, 2.28, 1.65), G.millwork);   // 2'-3" x 1'-8" (design deck p.4)
   B(12.12, 12.17, y0, y0 + 7.0, 10.71, 13.21, M.glass, { parent: G.glass, shadow: false }); cyl(15.4, 12.0, y0 + 6.6, y0 + 6.7, 0.3, M.steel);
-  // primary WC: wall-hung toilet, storage cabinet over a shelf in the 1'-2" alcove (design deck p.5)
+  // primary WC: wall-hung toilet; in the 1'-2" alcove a painted wood storage cabinet (two shelves, assumed: not drawn)
+  // behind a pair of doors, over a tiled niche with a stone sill (design deck p.5, A-621.00 E)
   fx(19.04, y0, 14.81, -Math.PI / 2, wallToilet);
-  B(16.5, 19.0, y0 + 4.7, y0 + 8.45, 12.46, 13.6, M.cab, { parent: G.millwork }); B(16.5, 19.0, y0 + 3.6, y0 + 3.7, 12.46, 13.5, M.cab, { parent: G.millwork });
+  millwork(() => {
+    const a = 16.5, b = 19.0, z0 = 12.46, zf = 13.56, c0 = y0 + 4.7, c1 = y0 + 8.45;
+    B(a, b, c0, c0 + 0.08, z0, zf, M.cab); B(a, b, c1 - 0.08, c1, z0, zf, M.cab); B(a, a + 0.06, c0, c1, z0, zf, M.cab); B(b - 0.06, b, c0, c1, z0, zf, M.cab);
+    [5.95, 7.2].forEach(y => B(a + 0.06, b - 0.06, y0 + y - 0.06, y0 + y, z0 + 0.02, zf - 0.04, M.cab));
+    B(a, b, y0 + 3.6, y0 + 3.7, z0, 13.5, M.cab);
+    frontRow('z', zf, 1, [a, (a + b) / 2, b], c0, c1, M.cab, false, G.doors);
+  });
   // primary bath (design deck p.5): 5'-0" x 2'-8" alcove tub between the north and south walls, apron toward the shower,
   // spout and valve on the north end wall; fixed glass panel and hinged glass door on the shower's east side; 5'-0" vanity
   { const x0 = 8.2, x1 = 10.87, z0 = 16.54, z1 = 21.54, h = y0 + 1.67, r = 0.3, e = 0.45;
@@ -1351,29 +1409,59 @@ B(7.1, 20.5, GRADE_F + 0.3, GRADE_F + 0.42, 57.42, 57.58, M.iron, { parent: E })
   cyl(12.2, 17.1, y0 + 6.6, y0 + 6.7, 0.35, M.steel);
   fx(19.04, y0, 19.04, -Math.PI / 2, g => vanity(g, 5.0, 1.68, [-1.15, 1.15]), G.millwork);
   C.push([8.2, 10.87, 16.54, 21.54]); MCOL.second.push([17.3, 19.04, 16.8, 21.3]);
-  // laundry alcove: counter + stacked washer/dryer
-  millwork(() => { B(8.25, 10.9, y0, y0 + 3.0, 25.7, 27.71, M.cab); B(8.25, 10.9, y0 + 2.9, y0 + 3.0, 25.6, 27.71, M.marble); });
-  B(10.95, 13.55, y0, y0 + 6.4, 25.2, 27.7, M.porcelain);
-  [y0 + 1.6, y0 + 4.8].forEach(yy => { const d = addMesh(new THREE.CircleGeometry(0.7, 28), M.ovenGlass, G.structure, { shadow: false }); d.rotation.y = Math.PI; d.position.set(12.25, yy, 25.18); });
-  C.push([10.95, 13.55, 25.2, 27.71]); MCOL.second.push([8.25, 10.9, 25.6, 27.71]);
-  // primary closet wall (A-630.00 4B): linen drawers to 4'-7 1/2" under the ERV unit and a steam closet, below an 8'-4"
-  // soffit; then three built-in closet sections 9'-4" high (drawers, hanging, shelves) behind full-height doors
-  {
-    const xf = 17.38, xb = XR, top = y0 + 9.33;
-    B(xf, xb, y0 + 8.33, y0 + 9.6, 22.13, 28.3, M.plaster, { poche: true });                       // soffit
-    DEF = G.millwork;
+  // laundry alcove (A-101.00, A-605.00 2A): stacked washer/dryer on the west; on the east a two-door base cabinet and counter
+  // to 3'-0", a hanging rod at 6'-0" under a fixed shelf, and a removable shelf above for access to the AHU
+  B(8.25, 10.85, y0, y0 + 6.4, 25.2, 27.7, M.porcelain);
+  [y0 + 1.6, y0 + 4.8].forEach(yy => { const d = addMesh(new THREE.CircleGeometry(0.7, 28), M.ovenGlass, G.structure, { shadow: false }); d.rotation.y = Math.PI; d.position.set(9.55, yy, 25.18); });
+  millwork(() => {
+    const a = 10.95, b = 13.57, z0 = 25.7, z1 = 27.71;
+    B(10.85, a, y0, y0 + 8.5, 25.2, z1, M.cab);
+    B(a, b, y0, y0 + 2.9, z0, z1, M.cab); B(a, b, y0 + 2.9, y0 + 3.0, 25.6, z1, M.marble);
+    frontRow('z', z0, -1, [a, (a + b) / 2, b], y0 + 0.33, y0 + 2.88, M.cab, 'top', G.millwork);
+    B(a, b, y0 + 6.33, y0 + 6.42, z0, z1, M.cab); B(a, b, y0 + 7.4, y0 + 7.47, z0, z1, M.cab);
+    const rod = addMesh(new THREE.CylinderGeometry(0.04, 0.04, b - a, 12), M.steel); rod.rotation.z = Math.PI / 2; rod.position.set((a + b) / 2, y0 + 6.0, 26.7);
+  });
+  C.push([8.25, 10.9, 25.2, 27.71]); MCOL.second.push([10.9, 13.57, 25.6, 27.71]);
+  // primary closet wall (A-630.00 4B): linen drawers to 4'-7 1/2" under the ERV unit and a steam closet (the generator, a
+  // shelf at 7'-0" behind its own door above), below an 8'-4" soffit; then three built-in sections 9'-4" high on a 4" toe
+  // kick: long hanging (rod at 5'-11" under three shelves) behind two pairs of doors, then two sections each with three
+  // drawers to 3'-0", a rod at 6'-3" and three shelves, behind a pair of doors above the drawers
+  B(17.38, XR, y0 + 8.33, y0 + 9.6, 22.13, 28.3, M.plaster, { poche: true });                       // soffit
+  millwork(() => {
+    const xf = 17.38, xb = XR, top = y0 + 9.33, D = G.doors;
+    const knob = (z, y) => B(xf - 0.08, xf - 0.04, y - 0.04, y + 0.04, z - 0.04, z + 0.04, M.steel, { shadow: false, parent: D });
+    const shelf = (z0, z1, y) => B(xf + 0.02, xb, y0 + y - 0.12, y0 + y, z0, z1, M.cab);
+    const rod = (z0, z1, y) => { const m = addMesh(new THREE.CylinderGeometry(0.04, 0.04, z1 - z0, 12), M.steel); m.rotation.x = Math.PI / 2; m.position.set((xf + xb) / 2, y0 + y, (z0 + z1) / 2); };
     B(xf, xb, y0, y0 + 4.62, 22.26, 25.6, M.cab, { poche: true });                                 // deep linen drawers
     for (let i = 0; i < 4; i++) front('x', xf, -1, 22.26, 25.6, y0 + 0.4 + i * 1.02, y0 + 1.41 + i * 1.02, M.cab, 'top', undefined, G.millwork);
     B(xf + 0.3, xb, y0 + 4.62, y0 + 8.33, 22.26, 25.6, M.cab, { poche: true });                    // ERV unit enclosure
-    B(xf, xb, y0, y0 + 8.33, 25.72, 28.17, M.cab, { poche: true });                                // steam closet
-    front('x', xf, -1, 25.72, 28.17, y0 + 0.4, y0 + 8.3, M.cab, 'v0', 1.2, G.millwork);
-    B(xf, xb, y0, top, 28.42, 37.62, M.cab, { poche: true });                                      // closet sections
-    B(xf, xb, top, y0 + 9.6, 28.42, 37.62, M.cab, { poche: true });
-    const zc = [28.42, 29.95, 31.48, 33.0, 34.55, 36.08, 37.62];
-    frontRow('x', xf, -1, zc, y0 + 0.4, top, M.cab, false, G.millwork);
-    for (let i = 0; i < 6; i++) B(xf - 0.05, xf, y0 + 3.6, y0 + 4.6, i % 2 ? zc[i] + 0.12 : zc[i + 1] - 0.16, i % 2 ? zc[i] + 0.16 : zc[i + 1] - 0.12, M.steel, { shadow: false });
-    DEF = null;
-  }
+    // steam closet
+    B(xf, xb, y0, y0 + 8.33, 25.6, 25.73, M.cab, { poche: true }); B(xf, xb, y0, top, 28.18, 28.3, M.cab, { poche: true });
+    B(xf + 0.1, xb, y0, y0 + 0.33, 25.73, 28.18, M.black, { shadow: false }); B(xf, xb, y0 + 0.33, y0 + 0.4, 25.73, 28.18, M.cab);
+    B(18.3, 19.35, y0 + 0.4, y0 + 1.7, 26.2, 27.7, M.steel);                                       // steam generator
+    shelf(25.73, 28.18, 7.01); B(xf, xb, y0 + 8.17, y0 + 8.33, 25.73, 28.18, M.cab);
+    front('x', xf, -1, 25.73, 28.18, y0 + 0.4, y0 + 6.89, M.cab, 'v0', 1.2, D);
+    front('x', xf, -1, 25.73, 28.18, y0 + 7.01, y0 + 8.27, M.cab, false, undefined, D);
+    // closet sections: panels, toe kick, top
+    [[31.4, 31.55], [34.52, 34.66], [37.63, 37.75]].forEach(([a, b]) => B(xf, xb, y0, top, a, b, M.cab, { poche: true }));
+    B(xf + 0.1, xb, y0, y0 + 0.33, 28.3, 37.75, M.black, { shadow: false });
+    B(xf, xb, top - 0.08, y0 + 9.6, 28.3, 37.75, M.cab, { poche: true });
+    // long hanging
+    B(xf, xb, y0 + 0.33, y0 + 0.4, 28.3, 31.4, M.cab);
+    [6.42, 7.38, 8.38].forEach(y => shelf(28.3, 31.4, y)); rod(28.3, 31.4, 5.88);
+    const zA = (28.3 + 31.55) / 2;
+    [[0.4, 6.87], [6.87, top - y0]].forEach(([v0, v1]) => frontRow('x', xf, -1, [28.3, zA, 31.55], y0 + v0, y0 + v1, M.cab, false, D));
+    knob(zA - 0.12, y0 + 3.0); knob(zA + 0.12, y0 + 3.0); knob(zA - 0.12, y0 + 7.0); knob(zA + 0.12, y0 + 7.0);
+    // drawers + short hanging
+    [[31.55, 34.52, 34.6], [34.66, 37.63, 37.65]].forEach(([z0, z1, zd]) => {
+      const zs0 = z0 === 31.55 ? 31.55 : 34.6, zm = (zs0 + zd) / 2;
+      B(xf, xb, y0 + 0.33, y0 + 3.0, z0, z1, M.cab); B(xf, xb, y0 + 3.0, y0 + 3.1, z0, z1, M.cab);
+      [[0.4, 1.2], [1.2, 2.04], [2.04, 3.0]].forEach(([v0, v1]) => front('x', xf, -1, zs0, zd, y0 + v0, y0 + v1, M.cab, 'top', undefined, G.millwork));
+      [6.79, 7.71, 8.63].forEach(y => shelf(z0, z1, y)); rod(z0, z1, 6.25);
+      frontRow('x', xf, -1, [zs0, zm, zd], y0 + 3.1, top, M.cab, false, D);
+      knob(zm - 0.12, y0 + 4.7); knob(zm + 0.12, y0 + 4.7);
+    });
+  });
   // divider between the bed and the closet (A-630.00 4A, 3C): 7'-0" long, 8'-0" high; a painted wood panel faces the bed;
   // toward the closet, two stacks of three drawers to 3'-0", an open 1'-6", then three bays of shelves to the top
   millwork(() => {
@@ -1495,7 +1583,7 @@ function mergeLayer(group) {
     group.add(m);
   });
 }
-['structure', 'kitchen', 'millwork', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => mergeLayer(G[k]));
+['structure', 'kitchen', 'millwork', 'doors', 'furniture', 'ceiling', 'exterior', 'glass'].forEach(k => mergeLayer(G[k]));
 
 // ================= OUTLINES =================
 // Thin lines wherever two surfaces meet at an angle, so walls and corners read in tight spaces even with flat colors.
@@ -1536,7 +1624,7 @@ function dropButtJoints(geo) {
 {
   const skip = new Set([M.poche, M.glass, M.downlight, M.rug, M.lampShade]);
   const ground = new Set([M.concrete, M.grass, M.asphalt, M.basement]);
-  ['structure', 'kitchen', 'millwork', 'furniture', 'exterior'].forEach(k => {
+  ['structure', 'kitchen', 'millwork', 'doors', 'furniture', 'exterior'].forEach(k => {
     [...G[k].children].forEach(m => {
       if (!m.isMesh || skip.has(m.material) || (k === 'exterior' && ground.has(m.material))) return;
       const e = new THREE.LineSegments(dropButtJoints(new THREE.EdgesGeometry(m.geometry, 28)), edgeMat);
@@ -1748,19 +1836,28 @@ function setDims(on) {
 }
 const dimsOn = () => document.getElementById('tags').classList.contains('dims');
 ['dimsBtn', 'tDims'].forEach(id => document.getElementById(id).addEventListener('click', () => setDims(!dimsOn())));
-// ---------- Cabinets: hide the kitchen, built-in closets, vanities and closet doors to see the bare rooms (button or C) ----------
-function setMillwork(on) {
-  G.kitchen.visible = G.millwork.visible = on;
-  ['millBtn', 'tMill'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
+// ---------- See inside: closet and cabinet doors turn see-through, showing how the closets are fitted out (button or C) ----------
+// Their outlines stay, faintly, so the doors still read; the doors stop blocking clicks and casting shadows.
+const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1, depthWrite: false });
+const ghostEdge = new THREE.LineBasicMaterial({ color: 0x2b2926, transparent: true, opacity: 0.22 });
+let seeInside = false;
+function setSeeInside(on) {
+  seeInside = on;
+  G.doors.children.forEach(o => {
+    if (!o.userData.mat) o.userData = { mat: o.material, cast: o.castShadow };
+    o.material = on ? (o.isMesh ? ghostMat : ghostEdge) : o.userData.mat;
+    o.castShadow = !on && o.userData.cast;
+  });
+  ['seeBtn', 'tSee'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
   occDirty = true; invalidate(true);
-  try { localStorage.setItem('modelMill', on ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem('modelSee', on ? '1' : '0'); } catch (e) {}
 }
-['millBtn', 'tMill'].forEach(id => document.getElementById(id).addEventListener('click', () => setMillwork(!G.millwork.visible)));
+['seeBtn', 'tSee'].forEach(id => document.getElementById(id).addEventListener('click', () => setSeeInside(!seeInside)));
 window.addEventListener('keydown', e => {
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key.toLowerCase() === 'm') setDims(!dimsOn());
-  if (e.key.toLowerCase() === 'c') setMillwork(!G.millwork.visible);
+  if (e.key.toLowerCase() === 'c') setSeeInside(!seeInside);
 });
 const walkGroup = document.getElementById('walkGroup'), walkSep = document.getElementById('walkSep');
 function setLevel(lv, quiet) {
@@ -1806,7 +1903,7 @@ function floorPoint(cx, cy) {
 // click destination: the floor point, or just short of the first wall / fixture the ray hits on the way
 function clickTarget(cx, cy) {
   const f = floorPoint(cx, cy);
-  const objs = [G.structure, G.kitchen, G.millwork, G.furniture].filter(g => g.visible);
+  const objs = [G.structure, G.kitchen, G.millwork, G.furniture].concat(seeInside ? [] : [G.doors]).filter(g => g.visible);
   const hit = walkRay.intersectObjects(objs, true).find(h => h.object.isMesh && h.object.material !== M.glass && h.point.y > walkFloor + 0.15);
   const p = camera.position;
   if (hit && (!f || hit.distance < Math.hypot(f.x - p.x, walkFloor - p.y, f.z - p.z))) {
@@ -1909,9 +2006,8 @@ function blocked(x, z) {
     // on the first floor, allow standing inside the front door reveal
     if (!(walkLv === 'first' && z > ZF - 0.2 && z < 41 && x > DX0 + r && x < DX1 - r)) return true;
   }
-  let list = COL[walkLv];
+  let list = COL[walkLv].concat(MCOL[walkLv]);
   if (G.furniture.visible) list = list.concat(FCOL[walkLv]);
-  if (G.millwork.visible) list = list.concat(MCOL[walkLv]);
   for (const c of list) if (x > c[0] - r && x < c[1] + r && z > c[2] - r && z < c[3] + r) return true;
   return false;
 }
@@ -1999,7 +2095,7 @@ function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level ==
 const tmpV = new THREE.Vector3(), ray = new THREE.Raycaster();
 // hide a tag when solid geometry below the section cut stands between it and the camera (run once the camera settles)
 function updateOcclusion() {
-  const objs = [G.structure, G.exterior, G.kitchen, G.millwork];
+  const objs = [G.structure, G.exterior, G.kitchen, G.millwork].concat(seeInside ? [] : [G.doors]);
   TAGS.forEach(d => {
     if (d.lv !== level) return;
     const dir = d.vec.clone().sub(camera.position), dist = dir.length();
@@ -2438,7 +2534,7 @@ new ResizeObserver(resize).observe(app); resize();
 // initial view: first floor from the street side (no animation)
 { let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1' || pref === '2') setLens(+pref); }
 { let pref = null; try { pref = localStorage.getItem('modelDims'); } catch (e) {} if (pref === '1') setDims(true); }
-{ let pref = null; try { pref = localStorage.getItem('modelMill'); } catch (e) {} if (pref === '0') setMillwork(false); }
+{ let pref = null; try { pref = localStorage.getItem('modelSee'); } catch (e) {} if (pref === '1') setSeeInside(true); }
 { let sp = null; try { sp = parseFloat(localStorage.getItem('modelSpeed')); } catch (e) {} if ([0.5, 0.75, 1, 1.25, 1.5, 2].includes(sp)) { tour.speed = sp; tSpeed.value = String(sp); } }
 {
   const p = orbitPose('aerial', 'first'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
