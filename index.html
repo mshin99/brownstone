@@ -111,8 +111,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 }
 .tag small { display: block; font-family: var(--f-mono); font-weight: 400; font-size: 10px; letter-spacing: 0.02em; text-transform: none; color: #4c5560; }
 .tag.minor { font-size: 11px; background: rgba(255, 255, 255, 0.7); }
-.tag small.dim { display: none; color: #1b2026; font-weight: 500; margin-top: 1px; }
-#tags.dims small.dim { display: block; }
+.tag small.dim { color: #1b2026; font-weight: 500; margin-top: 1px; }
 .tag:hover { border-color: #2f4f8f; }
 
 /* Dimensions inside a room (walking / walkthrough) */
@@ -191,6 +190,54 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   .dimcard { top: calc(84px + env(safe-area-inset-top, 0px)); white-space: normal; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
 }
 @media (min-width: 761px) { .layers[data-collapsed="true"] .body { display: none; } }
+
+/* Electrical: switch plates and outlets on the plan, and the switch plate card */
+#elecLayer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.splate {
+  position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; display: flex; gap: 2px; align-items: center;
+  padding: 3px; background: #f7f5ef; border: 1px solid #6b6558; border-radius: 3px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.splate i { display: block; width: 5px; height: 12px; border-radius: 1px; background: #d9d4c7; border: 1px solid #a49d8c; }
+.splate i.on { background: #ffc23d; border-color: #b9821a; }
+.splate:hover, .splate[aria-pressed="true"] { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+.outlet { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: help; display: flex; align-items: center; gap: 2px;
+  font: 600 9px/1 var(--f-mono); color: #1b2026; }
+.outlet svg { width: 14px; height: 14px; }
+.outlet b { background: rgba(255, 255, 255, 0.88); padding: 1px 2px; border-radius: 2px; font-weight: 600; }
+.eleccard {
+  top: calc(96px + env(safe-area-inset-top, 0px)); left: max(16px, calc(env(safe-area-inset-left, 0px) + 12px));
+  width: 292px; max-height: calc(100% - 210px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: auto; padding: 12px 14px 14px; display: grid; gap: 10px;
+}
+.eleccard h2 { margin: 0; font-family: var(--f-display); font-size: 15px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
+.legend { display: grid; grid-template-columns: 22px 1fr; gap: 5px 8px; align-items: center; font-size: 12.5px; }
+.legend svg { width: 22px; height: 16px; background: #e6e2d8; border-radius: 2px; }
+.platename { font-family: var(--f-display); font-size: 18px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.15; }
+.wallplate {
+  justify-self: center; display: flex; gap: 10px; padding: 16px 16px 14px; margin: 4px 0 2px;
+  background: linear-gradient(160deg, #fbfaf6, #ebe7dd); border: 1px solid #c9c3b4; border-radius: 7px;
+  box-shadow: 0 1px 0 #fff inset, 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.gang { display: grid; justify-items: center; gap: 6px; }
+.gang span { font: 600 10px/1 var(--f-mono); color: #8a8473; }
+.rocker {
+  position: relative; width: 30px; height: 70px; padding: 0; cursor: pointer; border-radius: 3px;
+  background: linear-gradient(#fdfcf9, #e7e3d9 52%, #f6f4ee 54%, #fbfaf6); border: 1px solid #bdb6a6;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.16);
+}
+.rocker[aria-pressed="true"] { background: linear-gradient(#e4e0d5, #f3f1ea 46%, #fdfcf9 48%, #fbfaf6); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12); }
+.rocker em { position: absolute; left: 50%; bottom: 7px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #c3bcab; }
+.rocker[aria-pressed="true"] em { background: #ffae1a; box-shadow: 0 0 6px 2px rgba(255, 174, 26, 0.7); }
+.rocker.none { cursor: default; opacity: 0.75; }
+.gangs { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 12.5px; }
+.gangs li { display: grid; grid-template-columns: 18px 1fr; gap: 1px 6px; align-items: baseline; }
+.gangs li > b { grid-row: span 2; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: #fff; font: 600 10px/1 var(--f-mono); }
+.gangs .sub { color: var(--muted); font-size: 11.5px; }
+.gangs .st { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); margin-left: 4px; }
+.gangs .st.on { color: #b07408; }
+@media (max-width: 760px) {
+  .eleccard { top: auto; bottom: calc(118px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; max-height: 44%; }
+}
 </style>
 </head>
 <body>
@@ -199,6 +246,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 <div id="tags" aria-hidden="false"></div>
 <div id="dimLabels" aria-hidden="true"></div>
 <div class="overlay card dimcard" id="dimCard" aria-live="polite" hidden></div>
+<div id="elecLayer" hidden></div>
+<aside class="overlay card eleccard" id="elecCard" aria-label="Electrical" hidden>
+  <div class="panelhead"><h2 id="elecHead">Electrical</h2><button class="ic" id="elecAllOff" style="padding:5px 8px;font-size:12px">All off</button></div>
+  <div id="elecBody"></div>
+</aside>
 
 <header class="overlay card titleblock">
   <div class="name">
@@ -241,8 +293,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <label class="label-xs" for="roomSel">Go to</label>
     <select id="roomSel" class="roomsel"><option value="">Choose a room&hellip;</option></select>
     <button class="v" id="wideBtn" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
-    <button class="v" id="dimsBtn" aria-pressed="false" title="Room dimensions and ceiling heights (M)">Dimensions</button>
+    <button class="v" id="dimsBtn" aria-pressed="false" title="Room labels with sizes and ceiling heights, and dimension lines inside (M)">Dimensions</button>
     <button class="v" id="seeBtn" aria-pressed="false" title="Make closet and cabinet doors see-through to show the shelves, rods and drawers behind them (C)">See inside</button>
+    <button class="v" id="elecBtn" aria-pressed="false" title="Lights, switches and outlets on the plan; pick a switch plate to work its switches (E)">Electrical</button>
   </div>
   <span class="sep" aria-hidden="true" id="walkSep"></span>
   <div class="group" role="group" aria-label="Level">
@@ -292,7 +345,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
         <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
       </select>
       <button class="v" id="tWide" aria-pressed="false" title="Lens: normal, wide angle or ultra wide (V)">Normal lens</button>
-      <button class="v" id="tDims" aria-pressed="false" title="Room dimensions and ceiling heights (M)">Dimensions</button>
+      <button class="v" id="tDims" aria-pressed="false" title="Room labels with sizes and ceiling heights, and dimension lines inside (M)">Dimensions</button>
       <button class="v" id="tSee" aria-pressed="false" title="Make closet and cabinet doors see-through to show the shelves, rods and drawers behind them (C)">See inside</button>
     </div>
     <div class="tourside">
@@ -1045,7 +1098,8 @@ const E = G.exterior;
 // Ground: street side, sidewalk, street; garden side; neighbours either side. Deep boxes so a cut below grade reads as earth.
 {
   const gF = (x0, x1, z0, z1) => B(x0, x1, CEL_LOW - 1.5, GRADE_F, z0, z1, M.concrete, { parent: E, shadow: false });
-  gF(-40, 0.83, ZFE, 70); gF(0.83, 1.1, 47.6, 70); gF(6.94, 15.13, ZFE, 70);   // ground stops at the stoop's stone cheek (no coplanar faces to fight) gF(18.36, 60, ZFE, 70); gF(1.1, 6.94, 47.6, 70); gF(6.3, 6.94, 45.36, 47.6);
+  gF(-40, 0.83, ZFE, 70); gF(0.83, 1.1, 47.6, 70); gF(6.94, 15.13, ZFE, 70);   // ground stops at the stoop's stone cheek (no coplanar faces to fight)
+  gF(18.36, 60, ZFE, 70); gF(1.1, 6.94, 47.6, 70); gF(6.3, 6.94, 45.36, 47.6);
   gF(15.13, 18.36, 45.26, 70);
   B(15.13, 18.36, -9.3, GRADE_F, ZFE, 45.26, M.concrete, { parent: E, shadow: false });   // sidewalk over the vault
   B(-40, 60, GRADE_F - 1.8, GRADE_F - 0.4, 70, 96, M.asphalt, { parent: E, shadow: false });
@@ -1706,10 +1760,26 @@ const LEVELS = {
   },
 };
 const OVERVIEWS = ['aerial', 'garden', 'plan'];
+// Plan is a flat top-down drawing: a long, narrow lens from straight above (close to orthographic), rear wall at the
+// top of the screen as on the sheets, no orbiting; drag pans and scroll zooms.
+const PLAN_FOV = 14;
+function planDist() {
+  const t = Math.tan(PLAN_FOV * Math.PI / 360);
+  return Math.max(50 / (2 * t), 27 / (2 * t * camera.aspect));
+}
 function orbitPose(name, lv) {
-  if (lv === 'house') return { aerial: { pos: [56, 64, 96], target: [10, 4, 21] }, garden: { pos: [-36, 54, -48], target: [10, 4, 16] }, plan: { pos: [10, 120, 21.6], target: [10, 10, 21.5] } }[name];
+  const d = planDist();
+  if (lv === 'house') return { aerial: { pos: [56, 64, 96], target: [10, 4, 21] }, garden: { pos: [-36, 54, -48], target: [10, 4, 16] }, plan: { pos: [10, 10 + d, 21.51], target: [10, 10, 21.5] } }[name];
   const y = LEVELS[lv].y;
-  return { aerial: { pos: [40, y + 47, 70], target: [9.5, y, 21] }, garden: { pos: [-20, y + 40, -30], target: [10, y, 16] }, plan: { pos: [10, y + 82, 21.6], target: [10, y, 21.5] } }[name];
+  return { aerial: { pos: [40, y + 47, 70], target: [9.5, y, 21] }, garden: { pos: [-20, y + 40, -30], target: [10, y, 16] }, plan: { pos: [10, y + d, 21.51], target: [10, y, 21.5] } }[name];
+}
+function lockPlan(on) {
+  controls.enableRotate = !on;
+  controls.maxPolarAngle = on ? 0 : Math.PI * 0.495;
+  controls.minAzimuthAngle = on ? 0 : -Infinity; controls.maxAzimuthAngle = on ? 0 : Infinity;
+  controls.mouseButtons.LEFT = on ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+  controls.touches.ONE = on ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
+  controls.maxDistance = on ? 900 : 190;
 }
 const EYE = 5.3;
 let mode = 'orbit', level = 'first', walkLv = 'first', yaw = 0, pitch = 0, flight = null, activeView = 'aerial', lastOverview = 'aerial';
@@ -1748,6 +1818,7 @@ function go(name) {
   activeView = name; updatePressed();
   if (ov) {
     lastOverview = name; mode = 'orbit'; controls.enabled = false; roomSel.value = '';
+    lockPlan(name === 'plan');
     setCeiling(false); useRoomLights(null);
     if (level === 'house') setCut(1000);
     else setCut(name === 'plan' ? L.y + 4.0 : L.y + L.cut);   // just under the level's ceiling; plans cut at 4'-0"
@@ -1755,7 +1826,7 @@ function go(name) {
     fly(pos, quatLook(pos, tgt), () => { controls.target.copy(tgt); controls.enabled = true; controls.update(); });
   } else {
     const w = L.walks[name];
-    mode = 'walk'; walkLv = level; walkFloor = L.floor; controls.enabled = false; walkPath = null;
+    mode = 'walk'; walkLv = level; walkFloor = L.floor; controls.enabled = false; walkPath = null; lockPlan(false);
     setCeiling(true); setCut(1000);
     useRoomLights(walkLv);
     yaw = w.yaw; pitch = w.pitch;
@@ -1827,14 +1898,16 @@ window.addEventListener('keydown', e => {
 // Furniture is switched off while the model is checked against the drawings; the pieces stay in the code (G.furniture)
 // so rooms can be furnished again one at a time.
 G.furniture.visible = false;
-// ---------- Room dimensions on the room tags: width x depth and ceiling height (button or M) ----------
+// ---------- Dimensions (button or M): the room labels, each with width x depth and ceiling height, and inside a room
+// the wall-to-wall dimension lines ----------
+let labelsOn = true;
 function setDims(on) {
-  document.getElementById('tags').classList.toggle('dims', on);
+  labelsOn = on;
   ['dimsBtn', 'tDims'].forEach(id => document.getElementById(id).setAttribute('aria-pressed', String(on)));
-  occDirty = true; invalidate();
-  try { localStorage.setItem('modelDims', on ? '1' : '0'); } catch (e) {}
+  updateTagsVisibility(); invalidate();
+  try { localStorage.setItem('modelLabels', on ? '1' : '0'); } catch (e) {}
 }
-const dimsOn = () => document.getElementById('tags').classList.contains('dims');
+const dimsOn = () => labelsOn;
 ['dimsBtn', 'tDims'].forEach(id => document.getElementById(id).addEventListener('click', () => setDims(!dimsOn())));
 // ---------- See inside: closet and cabinet doors turn see-through, showing how the closets are fitted out (button or C) ----------
 // Their outlines stay, faintly, so the doors still read; the doors stop blocking clicks and casting shadows.
@@ -1869,7 +1942,11 @@ function setLevel(lv, quiet) {
   if (activeView === 'interior') goInterior(); else go(lastOverview);   // stay inside when changing floors
 }
 document.querySelectorAll('button.v[data-lv]').forEach(b => b.addEventListener('click', () => setLevel(b.dataset.lv)));
-document.querySelectorAll('button.v[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
+document.querySelectorAll('button.v[data-view]').forEach(b => b.addEventListener('click', () => {
+  const v = b.dataset.view;
+  if ((v === 'aerial' || v === 'garden') && level !== 'house') setLevel('house', true);   // the street and garden views show the whole house
+  go(v);
+}));
 
 // ---------- Walk controls ----------
 // Mouse only: drag to look, click the floor to walk there (a ring marks the spot), scroll to step forward / back.
@@ -2091,7 +2168,7 @@ TAGS.forEach(d => {
   else el.style.cursor = 'default';
   tagLayer.appendChild(el); d.el = el; d.vec = new THREE.Vector3(...d.p);
 });
-function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level === 'house'; occDirty = true; }
+function updateTagsVisibility() { tagLayer.hidden = mode !== 'orbit' || level === 'house' || !labelsOn; occDirty = true; updateElec(); }
 const tmpV = new THREE.Vector3(), ray = new THREE.Raycaster();
 // hide a tag when solid geometry below the section cut stands between it and the camera (run once the camera settles)
 function updateOcclusion() {
@@ -2189,6 +2266,294 @@ function placeDimLabels(w, h) {
     d.el.style.display = '';
     d.el.style.transform = `translate(-50%,-50%) translate(${((tmpV.x + 1) / 2 * w).toFixed(1)}px,${((1 - tmpV.y) / 2 * h).toFixed(1)}px)`;
   });
+}
+
+// ---------- Electrical: lights, switch plates and outlets (button or E) ----------
+// From the DD reflected ceiling plans A-200.00 and A-201.00 (Oct 30): fixture symbols, switch plates (a cluster of $ at
+// one spot) and the dashed switch legs that tie a switch to its fixtures. A leg that runs on to a second plate makes the
+// pair 3-way, so either plate works the lights. The DD set has no power plan: outlets are only the ones the interior
+// elevations call out (A-600.00, A-601.00, A-610.00). Shown in the overview and plan views of one level; pick a plate
+// to bring up its switches, flip one and its lights come on.
+// fixture: [level, kind, x, z, extra]. kinds: dl downlight A, wet wet-rated downlight A.1, adj adjustable A2,
+// clg ceiling light (extra: radius), sc wall sconce (extra: [nx, nz] into the room), ex exterior sconce (same),
+// strip cellar strip light, lin linear light (extra: [x1, z1])
+const CIRCUITS = {
+  // first floor
+  stairUp: { name: 'Stair sconces, 1st to 2nd', d: 'B.3 at the foot and head of the stair', fx: [['first', 'sc', 1.12, 13.61, [1, 0]], ['second', 'sc', 1.12, 14.51, [1, 0]]] },
+  exRear1: { name: 'Rear deck sconces', d: '2 × EX2 on the rear wall', fx: [['first', 'ex', 1.17, -0.3, [0, -1]], ['first', 'ex', 18.71, -0.3, [0, -1]]] },
+  liv: { name: 'Living downlights', d: '2 × A and 2 × A2 adjustable', fx: [['first', 'dl', 7.17, 4.33], ['first', 'dl', 7.17, 12.99], ['first', 'adj', 15.37, 4.33], ['first', 'adj', 15.37, 12.99]] },
+  c6r: { name: 'Living ceiling light', d: 'C.6', fx: [['first', 'clg', 11.03, 8.53, 0.75]] },
+  hall1: { name: 'Stair hall downlights', d: '4 × A along the stair', fx: [17.2, 20.78, 24.35, 27.93].map(z => ['first', 'dl', 5.19, z]) },
+  front: { name: 'Dining ceiling light + adjustables', d: 'C.6 and 2 × A2', fx: [['first', 'clg', 13.88, 34.98, 1.08], ['first', 'adj', 17.3, 31.74], ['first', 'adj', 17.3, 38.31]] },
+  kE: { name: 'Kitchen pendant', d: 'E, linear', fx: [['first', 'lin', 13.04, 20.64, [13.04, 25.65]]] },
+  kA: { name: 'Kitchen downlights', d: '4 × A', fx: [['first', 'dl', 10.77, 20.57], ['first', 'dl', 15.37, 20.57], ['first', 'dl', 10.77, 25.74], ['first', 'dl', 15.37, 25.74]] },
+  kUw: { name: 'Under-shelf lights', d: 'U under the open shelf, sink run and peninsula', fx: [['first', 'lin', 7.9, 17.07, [13.72, 17.07]], ['first', 'lin', 7.9, 17.07, [7.9, 25.1]]] },
+  kUe: { name: 'Under-cabinet lights, cooktop', d: 'U either side of the hood', fx: [['first', 'lin', 18.55, 21.88, [18.55, 23.42]], ['first', 'lin', 18.55, 26.03, [18.55, 27.58]]] },
+  vest: { name: 'Vestibule ceiling light', d: 'C.5', fx: [['first', 'clg', 4.05, 38.82, 0.75]] },
+  stairDn: { name: 'Stair sconces, 1st to basement', d: 'B.3 at the head and foot of the stair', fx: [['first', 'sc', 1.12, 31.44, [1, 0]], ['basement', 'sc', 1.12, 3.22, [1, 0]]] },
+  exFront: { name: 'Front door + stoop sconces', d: '2 × EX4 at the doors, EX1 on the stoop', fx: [['first', 'ex', 1.48, 42.1, [0, 1]], ['first', 'ex', 5.41, 42.1, [0, 1]], ['first', 'ex', 7.18, 42.53, [0, 1]]] },
+  // basement
+  exRearB: { name: 'Garden sconces', d: 'EX3 and 2 × EX2 on the rear wall', fx: [1.13, 7.73, 18.86].map(x => ['basement', 'ex', x, -0.3, [0, -1]]) },
+  hallB: { name: 'Hall ceiling lights', d: '5 × C.3', fx: [7.44, 13.54, 19.65, 25.75, 31.86].map(z => ['basement', 'clg', 5.97, z, 0.33]) },
+  fam: { name: 'Family room ceiling light', d: 'C.2', fx: [['basement', 'clg', 13.79, 7.96, 1.08]] },
+  bathB: { name: 'Bath sconce', d: 'B over the vanity', fx: [['basement', 'sc', 11.76, 15.8, [0, 1]]] },
+  bathA: { name: 'Bath + shower downlights', d: '2 × A.1 wet-rated', fx: [['basement', 'wet', 11.76, 17.55], ['basement', 'wet', 17.45, 17.55]] },
+  sauna: { name: 'Sauna light', d: 'A.1 wet-rated', fx: [['basement', 'wet', 16.2, 22.67]] },
+  stor: { name: 'Storage light', d: 'C.4', fx: [['basement', 'clg', 10.62, 23.67, 0.33]] },
+  gym: { name: 'Gym downlights', d: '4 × A', fx: [['basement', 'dl', 10.52, 29.73], ['basement', 'dl', 17.18, 29.73], ['basement', 'dl', 10.52, 38.01], ['basement', 'dl', 17.18, 38.01]] },
+  entry: { name: 'Entry vestibule ceiling light', d: 'C.1', fx: [['basement', 'clg', 4.04, 35.66, 0.75]] },
+  stoop: { name: 'Under-stoop sconce', d: 'B.4', fx: [['basement', 'sc', 1.68, 43.32, [1, 0]]] },
+  celStair: { name: 'Cellar stair sconces', d: '2 × B.3', fx: [['basement', 'sc', 3.25, 18.37, [-1, 0]], ['basement', 'sc', 3.25, 30.08, [-1, 0]]] },
+  gymCl: { name: 'Gym closet light', d: 'U, no switch shown', fx: [['basement', 'lin', 13.7, 26.74, [19.0, 26.74]]] },
+  // cellar
+  cel: { name: 'Cellar lights', d: '21 × C on the joists', fx: [[4.47, [2.93, 6.18, 11.18, 15.67]], [8.49, [2.64, 6.18, 11.18, 15.83]], [12.48, [2.7, 6.17, 11.18, 15.83]],
+    [18.05, [5.6, 10.61, 15.25]], [23.39, [5.6, 10.66, 15.25]], [28.47, [5.6, 10.61, 15.25]]].flatMap(([z, xs]) => xs.map(x => ['cellar', 'strip', x + 0.6, z - 0.1])) },
+  mech: { name: 'Mech room light', d: 'fixture not drawn; shown at the centre', fx: [['cellar', 'clg', 5.3, 36.3, 0.4]] },
+  celStor: { name: 'Storage room light', d: 'fixture not drawn; shown at the centre', fx: [['cellar', 'clg', 14.7, 37.0, 0.4]] },
+  // second floor
+  office: { name: 'Office ceiling light', d: 'C.10', fx: [['second', 'clg', 4.08, 4.21, 0.75]] },
+  hall2: { name: 'Hall + office downlights', d: '5 × A', fx: [4.2, 8.41, 14.6, 18.93, 23.47].map(z => ['second', 'dl', 5.92, z]) },
+  guest: { name: 'Guest bedroom ceiling light', d: 'C.9', fx: [['second', 'clg', 13.83, 5.68, 0.92]] },
+  gbA: { name: 'Guest bath downlights', d: '2 × A.1', fx: [['second', 'wet', 13.98, 11.95], ['second', 'wet', 10.16, 13.31]] },
+  gbB: { name: 'Guest bath sconce', d: 'B.2', fx: [['second', 'sc', 13.2, 14.77, [-1, 0]]] },
+  hatch: { name: 'Skylight / hatch H.2', d: 'switch at the H.2 tag; no light on it', fx: [] },
+  b5: { name: 'Bedroom sconces', d: '2 × B.5', fx: [['second', 'sc', 1.12, 30.05, [1, 0]], ['second', 'sc', 1.12, 38.57, [1, 0]]] },
+  c8: { name: 'Primary bedroom ceiling light', d: 'C.8', fx: [['second', 'clg', 6.25, 34.29, 0.92]] },
+  wic: { name: 'Walk-in closet downlights', d: '4 × A', fx: [29.54, 32.7, 35.87, 39.03].map(z => ['second', 'dl', 15.62, z]) },
+  passage: { name: 'Closet passage light', d: 'C.4', fx: [['second', 'clg', 15.62, 26.26, 0.33]] },
+  laundry: { name: 'Laundry light', d: 'C.4, no switch shown', fx: [['second', 'clg', 10.91, 23.54, 0.33]] },
+  pbA: { name: 'Primary bath downlights', d: '2 × A.1', fx: [['second', 'wet', 9.62, 19.04], ['second', 'wet', 15.62, 19.04]] },
+  pbWC: { name: 'WC downlight', d: 'A.1', fx: [['second', 'wet', 16.73, 14.87]] },
+  pbB: { name: 'Vanity sconces', d: '2 × B.1', fx: [['second', 'sc', 18.62, 16.81, [-1, 0]], ['second', 'sc', 18.62, 21.31, [-1, 0]]] },
+  guestCl: { name: 'Guest closet light', d: 'U, no switch shown', fx: [['second', 'lin', 16.67, 10.35, [19.2, 10.35]]] },
+};
+// plate: [level, place, face (into the room), switch height, [[x, z, circuit], ...]]
+const PLATES = [
+  ['first', 'Stair hall, living end', [0, -1], 4, [[2.42, 15.69, 'stairUp'], [2.74, 15.69, 'exRear1'], [3.05, 15.69, 'liv'], [3.35, 15.69, 'hall1']]],
+  ['first', 'Living, east wall', [-1, 0], 4, [[19.42, 14.58, 'liv'], [19.42, 15.21, 'c6r']]],
+  ['first', 'Kitchen end, dining side', [0, 1], 4, [[7.46, 29.7, 'front'], [7.89, 29.7, 'kE'], [8.49, 29.7, 'kA']]],
+  ['first', 'Kitchen, tall pantry', [0, -1], 3.75, [[8.8, 25.15, 'kUw']]],
+  ['first', 'Kitchen, cooktop wall', [-1, 0], 3.75, [[18.93, 26.65, 'kUe']]],
+  ['first', 'Hall by the basement stair', [1, 0], 4, [[0.56, 33.0, 'stairDn'], [0.56, 33.6, 'hall1'], [0.56, 34.18, 'vest']]],
+  ['first', 'Vestibule', [1, 0], 4, [[0.56, 38.82, 'vest'], [0.56, 39.25, 'exFront']]],
+  ['basement', 'Hall, foot of the stair', [0, 1], 4, [[1.06, 1.36, 'exRearB'], [1.37, 1.36, 'stairDn'], [1.69, 1.36, 'hallB']]],
+  ['basement', 'Family room', [1, 0], 4, [[8.27, 13.15, 'fam']]],
+  ['basement', 'Bathroom', [0, -1], 4, [[9.08, 19.86, 'bathB'], [9.33, 19.86, 'bathA'], [9.58, 19.86, 'sauna']]],
+  ['basement', 'Storage', [1, 0], 4, [[8.27, 21.69, 'stor']]],
+  ['basement', 'Gym', [1, 0], 4, [[8.27, 31.36, 'gym']]],
+  ['basement', 'Head of the cellar stair', [1, 0], 4, [[0.56, 30.29, 'cel'], [0.56, 30.68, 'celStair']]],
+  ['basement', 'Entry vestibule', [1, 0], 4, [[0.56, 37.85, 'hallB'], [0.56, 38.25, 'entry'], [0.56, 38.65, 'stoop']]],
+  ['cellar', 'Foot of the stair', [1, 0], 4, [[0.85, 19.46, 'cel']]],
+  ['cellar', 'Mech room', [0, 1], 4, [[4.28, 32.53, 'mech']]],
+  ['cellar', 'Storage room', [0, 1], 4, [[15.74, 32.53, 'celStor']]],
+  ['second', 'Head of the stair', [1, 0], 4, [[0.56, 12.12, 'office'], [0.56, 12.53, 'hall2'], [0.56, 13.12, 'stairUp']]],
+  ['second', 'Guest bedroom', [0, -1], 4, [[9.84, 10.06, 'guest']]],
+  ['second', 'Guest bath', [0, -1], 4, [[8.91, 15.9, 'gbA'], [9.3, 15.9, 'gbB']]],
+  ['second', 'Hall, bedroom end', [0, -1], 4, [[3.32, 27.69, 'hatch'], [3.63, 27.69, 'hall2']]],
+  ['second', 'Primary bedroom door', [0, 1], 4, [[3.32, 28.32, 'b5'], [3.63, 28.32, 'c8']]],
+  ['second', 'Primary bedroom, closet side', [0, 1], 4, [[13.1, 28.32, 'wic'], [13.42, 28.32, 'passage']]],
+  ['second', 'Primary bath', [0, -1], 4, [[17.7, 21.52, 'pbA'], [18.03, 21.52, 'pbWC'], [18.36, 21.52, 'pbB']]],
+];
+// outlets: [level, x, z, height above the floor, label, note]
+const OUTLETS = [
+  ['first', 7.35, 25.15, 3.3, 'GFI', 'GFI at the sink run, on the tall pantry (A-610.00 1B)'],
+  ['first', 18.93, 22.2, 3.25, 'GFI', 'GFI left of the cooktop (A-610.00 1D)'],
+  ['first', 18.93, 27.35, 3.25, 'GFI', 'GFI right of the cooktop (A-610.00 1D)'],
+  ['basement', 0.56, 16.05, 5.5, 'Quad', 'Quad outlet for the AV rack, AV closet (A-601.00 1C)'],
+  ['basement', 0.56, 16.3, 0.4, 'Quad', 'Quad outlet for vacuum charging, AV closet (A-601.00 1C)'],
+  ['cellar', 10.8, 33.66, 3.3, 'GFI', 'GFI over the utility sink (A-600.00)'],
+  ...[8, 16, 24].flatMap(z => [['cellar', 0.86, z, 1.5, '', 'Outlet on exposed conduit, typical at the rubble walls (A-600.00); spacing not dimensioned'],
+    ['cellar', 19.13, z, 1.5, '', 'Outlet on exposed conduit, typical at the rubble walls (A-600.00); spacing not dimensioned']]),
+];
+const ELV = { cellar: new THREE.Group(), basement: new THREE.Group(), first: new THREE.Group(), second: new THREE.Group() };
+const elecGroup = new THREE.Group(); elecGroup.visible = false; scene.add(elecGroup);
+Object.values(ELV).forEach(g => elecGroup.add(g));
+const elFloor = (lv, x, z) => lv === 'cellar' ? (x > 3.58 && x < 17.66 && z > 2.9 && z < 28.1 ? CEL_LOW : CEL) : LEVELS[lv].y;
+const elInk = new THREE.MeshBasicMaterial({ color: 0x23272d, depthTest: false, depthWrite: false, transparent: true });
+const elOff = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false, transparent: true });
+const elOn = new THREE.MeshBasicMaterial({ color: 0xffc23d, depthTest: false, depthWrite: false, transparent: true });
+const poolTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, 'rgba(255,222,140,0.95)'); r.addColorStop(0.4, 'rgba(255,205,105,0.55)'); r.addColorStop(1, 'rgba(255,190,80,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+})();
+const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+const flat = (geo, mat, x, y, z, rot) => { const m = new THREE.Mesh(geo, mat); m.rotation.set(-Math.PI / 2, 0, rot || 0); m.position.set(x, y, z); m.renderOrder = 31; return m; };
+// a dusk wash over each floor so lit pools read against the unlit rooms
+const duskMat = new THREE.MeshBasicMaterial({ color: 0x0b1020, transparent: true, opacity: 0.42, depthWrite: false });
+Object.entries(ELV).forEach(([lv, g]) => {
+  const [x0, x1, z0, z1] = LEVELS[lv].bounds, m = flat(new THREE.PlaneGeometry(x1 - x0 + 1, z1 - z0 + 1), duskMat, (x0 + x1) / 2, LEVELS[lv].y + 0.02, (z0 + z1) / 2);
+  m.renderOrder = 1; g.add(m);
+});
+const FIXTURES = [];
+Object.entries(CIRCUITS).forEach(([id, c]) => {
+  c.id = id; c.on = false; c.plates = []; c.fixtures = [];
+  c.fx.forEach(([lv, k, x, z, e]) => {
+    const y = elFloor(lv, x, z), sy = y + 0.12, g = ELV[lv], f = { lv, k, x, z, c, fills: [] };
+    const ring = (r, w) => g.add(flat(new THREE.RingGeometry(r, r + (w || 0.07), 32), elInk, x, sy + 0.01, z));
+    const disc = (r, cx, cz) => { const m = flat(new THREE.CircleGeometry(r, 32), elOff, cx == null ? x : cx, sy, cz == null ? z : cz); g.add(m); f.fills.push(m); };
+    let pool = [4.6, 4.6];
+    if (k === 'dl' || k === 'adj' || k === 'wet') {
+      disc(0.24); ring(0.24);
+      if (k === 'wet') g.add(flat(new THREE.CircleGeometry(0.1, 16), elInk, x, sy + 0.02, z));
+      if (k === 'adj') g.add(flat(new THREE.PlaneGeometry(0.05, 0.2), elInk, x + 0.2, sy + 0.02, z - 0.2, Math.PI / 4));
+      if (k === 'wet') pool = [3.6, 3.6];
+    } else if (k === 'clg') {
+      disc(e); ring(e, 0.06); pool = e < 0.5 ? [5.5, 5.5] : [7 + e * 2.5, 7 + e * 2.5];
+    } else if (k === 'sc' || k === 'ex') {
+      const [nx, nz] = e; disc(0.26); ring(0.26);
+      g.add(flat(new THREE.PlaneGeometry(nz ? 0.5 : 0.06, nz ? 0.06 : 0.5), elInk, x - nx * 0.3, sy + 0.01, z - nz * 0.3));
+      if (k === 'ex') g.add(flat(new THREE.CircleGeometry(0.08, 16), elInk, x, sy + 0.02, z));
+      pool = [3.8, 3.8];
+    } else if (k === 'strip') {
+      const m = flat(new THREE.PlaneGeometry(0.24, 0.62), elOff, x, sy, z, Math.PI / 4); g.add(m); f.fills.push(m);
+      g.add(flat(new THREE.RingGeometry(0.3, 0.35, 4), elInk, x, sy + 0.01, z)); pool = [5.2, 5.2];
+    } else if (k === 'lin') {
+      const [x1, z1] = e, L = Math.hypot(x1 - x, z1 - z) + 0.2, a = Math.atan2(x1 - x, z1 - z);
+      const m = flat(new THREE.PlaneGeometry(0.16, L), elOff, (x + x1) / 2, sy, (z + z1) / 2, a); g.add(m); f.fills.push(m);
+      g.add(flat(new THREE.PlaneGeometry(0.24, L + 0.08), elInk, (x + x1) / 2, sy - 0.005, (z + z1) / 2, a));
+      f.fills[0].renderOrder = 32;
+      f.pool = flat(new THREE.PlaneGeometry(3.0, L + 2.4), poolMat, (x + x1) / 2, y + 0.03, (z + z1) / 2, a);
+    }
+    if (!f.pool) { const [px, pz] = k === 'sc' || k === 'ex' ? [x + e[0] * 0.6, z + e[1] * 0.6] : [x, z]; f.pool = flat(new THREE.PlaneGeometry(pool[0], pool[1]), poolMat, px, y + 0.03, pz); }
+    f.pool.renderOrder = 2; f.pool.visible = false; g.add(f.pool);
+    c.fixtures.push(f); FIXTURES.push(f);
+  });
+});
+const LV_SHORT = { cellar: 'Cellar', basement: 'Basement', first: '1st floor', second: '2nd floor' };
+const elecLayer = document.getElementById('elecLayer'), elecCard = document.getElementById('elecCard'), elecBody = document.getElementById('elecBody');
+const GANG_COLORS = ['#d9822b', '#2f7fd0', '#3a9a5b', '#b0479a'];
+const plates = PLATES.map(([lv, place, n, h, sw]) => {
+  const x = sw.reduce((a, s) => a + s[0], 0) / sw.length, z = sw.reduce((a, s) => a + s[1], 0) / sw.length;
+  // gangs left to right as you face the plate
+  const rx = n[1], rz = -n[0];   // right-hand direction for someone facing the wall (looking along -n)
+  const gangs = sw.slice().sort((a, b) => (a[0] * rx + a[1] * rz) - (b[0] * rx + b[1] * rz)).map(s => CIRCUITS[s[2]]);
+  const p = { lv, place, n, gangs, x, z, v: new THREE.Vector3(x + n[0] * 0.15, elFloor(lv, x, z) + Math.min(h, 3.9), z + n[1] * 0.15) };
+  gangs.forEach(c => c.plates.push(p));
+  const el = document.createElement('button'); el.type = 'button'; el.className = 'splate'; el.setAttribute('aria-pressed', 'false');
+  el.innerHTML = gangs.map(() => '<i></i>').join('');
+  el.addEventListener('click', e => { e.stopPropagation(); selectPlate(selPlate === p ? null : p); });
+  elecLayer.appendChild(el); p.el = el;
+  return p;
+});
+plates.forEach(p => { p.el.title = `${p.place}: ${p.gangs.map(c => c.name.toLowerCase()).join(', ')}`; p.el.setAttribute('aria-label', `Switch plate, ${p.place}`); });
+const OUTLET_SVG = '<svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.6" fill="#fff" stroke="#23272d" stroke-width="1.3"/><path d="M5 4.6v4.8M9 4.6v4.8" stroke="#23272d" stroke-width="1.3"/></svg>';
+const outlets = OUTLETS.map(([lv, x, z, h, lab, note]) => {
+  const el = document.createElement('span'); el.className = 'outlet'; el.title = note; el.setAttribute('role', 'img'); el.setAttribute('aria-label', note);
+  el.innerHTML = OUTLET_SVG + (lab ? `<b>${lab}</b>` : '');
+  elecLayer.appendChild(el);
+  return { lv, el, v: new THREE.Vector3(x, elFloor(lv, x, z) + Math.min(h, 3.8), z) };
+});
+let elecOn = false, selPlate = null;
+const legGroup = new THREE.Group(); scene.add(legGroup);
+function drawLegs(p) {
+  legGroup.children.forEach(l => { l.geometry.dispose(); l.material.dispose(); }); legGroup.clear();
+  if (!p) return;
+  const y0 = elFloor(p.lv, p.x, p.z) + 0.14, from = new THREE.Vector3(p.x + p.n[0] * 0.3, y0, p.z + p.n[1] * 0.3);
+  p.gangs.forEach((c, i) => {
+    const col = new THREE.Color(GANG_COLORS[i % GANG_COLORS.length]);
+    const targets = c.fixtures.filter(f => f.lv === p.lv).map(f => new THREE.Vector3(f.x, elFloor(f.lv, f.x, f.z) + 0.14, f.z));
+    c.plates.filter(q => q !== p && q.lv === p.lv).forEach(q => targets.push(new THREE.Vector3(q.x + q.n[0] * 0.3, elFloor(q.lv, q.x, q.z) + 0.14, q.z + q.n[1] * 0.3)));
+    // chain the fixtures nearest-first, like the arcs on the drawing
+    let cur = from; const left = targets.slice();
+    while (left.length) {
+      let bi = 0; left.forEach((t, j) => { if (t.distanceTo(cur) < left[bi].distanceTo(cur)) bi = j; });
+      const t = left.splice(bi, 1)[0], mid = cur.clone().lerp(t, 0.5), d = t.clone().sub(cur);
+      mid.x += -d.z * 0.12; mid.z += d.x * 0.12;   // a slight bow, as drawn
+      const pts = new THREE.QuadraticBezierCurve3(cur, mid, t).getPoints(80), pos = [];
+      let run = 0;
+      for (let j = 1; j < pts.length; j++) {   // a flat dashed ribbon 1 1/2" wide (GL lines draw one pixel thin)
+        const a = pts[j - 1], b = pts[j], dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1e-6;
+        run += L; if (run % 0.75 > 0.45) continue;
+        const ox = -dz / L * 0.065, oz = dx / L * 0.065;
+        pos.push(a.x + ox, a.y, a.z + oz, a.x - ox, a.y, a.z - oz, b.x + ox, b.y, b.z + oz, a.x - ox, a.y, a.z - oz, b.x - ox, b.y, b.z - oz, b.x + ox, b.y, b.z + oz);
+      }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const line = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide }));
+      line.renderOrder = 30; legGroup.add(line);
+      cur = t;
+    }
+  });
+}
+function circuitWhere(c, p) {
+  const others = c.plates.filter(q => q !== p);
+  if (!c.plates.length) return 'no switch shown';
+  if (!others.length) return 'single switch';
+  return '3-way, also at ' + others.map(q => (q.lv === p.lv ? '' : LV_SHORT[q.lv] + ', ') + q.place.toLowerCase()).join('; ');
+}
+const fxCount = lv => FIXTURES.filter(f => f.lv === lv).length;
+const LEGEND = `<div class="legend">
+  <svg viewBox="0 0 22 16"><circle cx="11" cy="8" r="4.5" fill="#fff" stroke="#23272d" stroke-width="1.3"/></svg><span>Downlight (A, A.1 wet-rated, A2 adjustable)</span>
+  <svg viewBox="0 0 22 16"><circle cx="11" cy="8" r="7" fill="#fff" stroke="#23272d" stroke-width="1.3"/></svg><span>Ceiling light (C)</span>
+  <svg viewBox="0 0 22 16"><path d="M4 2v12" stroke="#23272d" stroke-width="1.6"/><circle cx="11" cy="8" r="4.5" fill="#fff" stroke="#23272d" stroke-width="1.3"/></svg><span>Sconce (B, EX)</span>
+  <svg viewBox="0 0 22 16"><rect x="2" y="6" width="18" height="4" fill="#fff" stroke="#23272d" stroke-width="1.3"/></svg><span>Linear (E pendant, U under-cabinet)</span>
+  <svg viewBox="0 0 22 16"><rect x="4" y="2" width="14" height="12" rx="2" fill="#f7f5ef" stroke="#6b6558"/><rect x="7" y="4.5" width="3" height="7" fill="#d9d4c7" stroke="#a49d8c" stroke-width=".8"/><rect x="12" y="4.5" width="3" height="7" fill="#ffc23d" stroke="#b9821a" stroke-width=".8"/></svg><span>Switch plate, one bar per switch</span>
+  <svg viewBox="0 0 22 16"><circle cx="11" cy="8" r="5.6" fill="#fff" stroke="#23272d" stroke-width="1.3"/><path d="M9 5v6M13 5v6" stroke="#23272d" stroke-width="1.3"/></svg><span>Outlet</span>
+</div>`;
+function renderElecCard() {
+  const p = selPlate;
+  document.getElementById('elecHead').textContent = p ? 'Switch plate' : 'Electrical';
+  if (!p) {
+    const lv = level === 'house' ? 'first' : level;
+    elecBody.innerHTML = `${LEGEND}<p class="note">Walls, stairs, openings, kitchen and millwork follow the design-development drawings: plans A-100.00 and A-101.00, the kitchen enlarged plan and elevations A-610.00, and interior elevations A-600.00 to A-631.00; doors follow the door schedule A-801.00, bathrooms and sauna the interior elevations. Furniture is switched off while the model is checked against the drawings.</p>
+      <p class="note">Walls, stairs, openings, kitchen and millwork follow the design-development drawings: plans A-100.00 and A-101.00, the kitchen enlarged plan and elevations A-610.00, and interior elevations A-600.00 to A-631.00; doors follow the door schedule A-801.00, bathrooms and sauna the interior elevations. Furniture is switched off while the model is checked against the drawings.</p>`;
+    return;
+  }
+  elecBody.innerHTML = `<div><div class="label-xs">${LV_SHORT[p.lv]}</div><div class="platename">${p.place}</div></div>
+    <div class="wallplate">${p.gangs.map((c, i) => `<div class="gang"><button type="button" class="rocker${c.fixtures.length ? '' : ' none'}" data-c="${c.id}" aria-pressed="${c.on}" aria-label="${c.name}"><em></em></button><span>${i + 1}</span></div>`).join('')}</div>
+    <ol class="gangs">${p.gangs.map((c, i) => `<li><b style="background:${GANG_COLORS[i % GANG_COLORS.length]}">${i + 1}</b><span>${c.name}<span class="st${c.on ? ' on' : ''}">${c.fixtures.length ? (c.on ? 'ON' : 'off') : ''}</span></span><span class="sub">${c.d} · ${circuitWhere(c, p)}</span></li>`).join('')}</ol>
+    <button class="ic" id="plateBack" style="justify-self:start;padding:5px 8px;font-size:12px">Back to legend</button>`;
+  elecBody.querySelectorAll('.rocker').forEach(b => b.addEventListener('click', () => { const c = CIRCUITS[b.dataset.c]; if (c.fixtures.length) setCircuit(c, !c.on); }));
+  document.getElementById('plateBack').addEventListener('click', () => selectPlate(null));
+}
+function refreshPlates() { plates.forEach(p => p.el.querySelectorAll('i').forEach((i, k) => i.classList.toggle('on', p.gangs[k].on))); }
+function setCircuit(c, on) {
+  c.on = on;
+  c.fixtures.forEach(f => { f.fills.forEach(m => { m.material = on ? elOn : elOff; }); f.pool.visible = on; });
+  refreshPlates(); renderElecCard(); invalidate();
+}
+function selectPlate(p) {
+  selPlate = p;
+  plates.forEach(q => q.el.setAttribute('aria-pressed', String(q === p)));
+  drawLegs(p); renderElecCard(); invalidate();
+}
+document.getElementById('elecAllOff').addEventListener('click', () => Object.values(CIRCUITS).forEach(c => { if (c.on) setCircuit(c, false); }));
+function updateElec() {
+  const show = elecOn && mode === 'orbit' && level !== 'house';
+  elecGroup.visible = show; legGroup.visible = show;
+  Object.entries(ELV).forEach(([lv, g]) => { g.visible = lv === level; });
+  elecLayer.hidden = !show; elecCard.hidden = !show;
+  if (selPlate && (!show || selPlate.lv !== level)) selectPlate(null); else if (show) renderElecCard();
+  invalidate();
+}
+function setElec(on) {
+  elecOn = on;
+  document.getElementById('elecBtn').setAttribute('aria-pressed', String(on));
+  if (on && (mode !== 'orbit' || level === 'house')) {   // electrical reads per floor, best in plan
+    if (mode === 'tour') exitTour();
+    setLevel(level === 'house' ? 'first' : (mode === 'walk' ? walkLv : level), true); go('plan');
+  }
+  updateElec();
+}
+document.getElementById('elecBtn').addEventListener('click', () => setElec(!elecOn));
+window.addEventListener('keydown', e => {
+  if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key.toLowerCase() === 'e') setElec(!elecOn);
+  if (e.key === 'Escape' && selPlate) selectPlate(null);
+});
+function placeElec(w, h) {
+  if (elecLayer.hidden) return;
+  const put = (el, v, show) => {
+    if (!show) { el.style.display = 'none'; return; }
+    tmpV.copy(v).project(camera);
+    if (tmpV.z > 1 || tmpV.x < -1.1 || tmpV.x > 1.1 || tmpV.y < -1.1 || tmpV.y > 1.1) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.style.transform = `translate(-50%,-50%) translate(${((tmpV.x + 1) / 2 * w).toFixed(1)}px,${((1 - tmpV.y) / 2 * h).toFixed(1)}px)`;
+  };
+  plates.forEach(p => put(p.el, p.v, p.lv === level));
+  outlets.forEach(o => put(o.el, o.v, o.lv === level));
 }
 
 // ---------- Panel wiring ----------
@@ -2523,6 +2888,7 @@ function resize() {
 }
 // keep a usable horizontal field of view in portrait windows
 function updateFov() {
+  if (mode === 'orbit' && activeView === 'plan') { camera.fov = PLAN_FOV; camera.near = 4; camera.far = 1200; camera.updateProjectionMatrix(); return; }
   const first = mode !== 'orbit', ln = LENSES[lens], base = first ? ln.v : 42, hMin = first ? ln.h : 48;
   const need = 2 * Math.atan(Math.tan(hMin * Math.PI / 360) / camera.aspect) * 180 / Math.PI;
   camera.fov = Math.min(first ? ln.max : 75, Math.max(base, need));
@@ -2531,14 +2897,14 @@ function updateFov() {
 }
 new ResizeObserver(resize).observe(app); resize();
 
-// initial view: first floor from the street side (no animation)
+// initial view: the whole house from the street side (no animation)
 { let pref = null; try { pref = localStorage.getItem('modelWide'); } catch (e) {} if (pref === '1' || pref === '2') setLens(+pref); }
-{ let pref = null; try { pref = localStorage.getItem('modelDims'); } catch (e) {} if (pref === '1') setDims(true); }
+{ let pref = null; try { pref = localStorage.getItem('modelLabels'); } catch (e) {} setDims(pref !== '0'); }
 { let pref = null; try { pref = localStorage.getItem('modelSee'); } catch (e) {} if (pref === '1') setSeeInside(true); }
 { let sp = null; try { sp = parseFloat(localStorage.getItem('modelSpeed')); } catch (e) {} if ([0.5, 0.75, 1, 1.25, 1.5, 2].includes(sp)) { tour.speed = sp; tSpeed.value = String(sp); } }
 {
-  const p = orbitPose('aerial', 'first'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
-  setLevel('first'); flight = null; camera.position.set(...p.pos); controls.enabled = true; controls.update();
+  const p = orbitPose('aerial', 'house'); camera.position.set(...p.pos); controls.target.set(...p.target); controls.update();
+  setLevel('house'); flight = null; camera.position.set(...p.pos); controls.enabled = true; controls.update();
 }
 let last = performance.now(), lastMove = 0;
 function frame(now) {
@@ -2559,7 +2925,7 @@ function frame(now) {
     if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
     updateRoomDims();
     renderer.render(scene, camera); needsRender = false;
-    placeTags(W, H); placeDimLabels(W, H);
+    placeTags(W, H); placeDimLabels(W, H); placeElec(W, H);
   }
   // re-check which room tags are hidden behind walls once the camera settles
   if (occDirty && !moving && now - lastMove > 150 && !tagLayer.hidden) { updateOcclusion(); placeTags(W, H); occDirty = false; }
