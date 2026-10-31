@@ -642,24 +642,28 @@ colliders.push([18.833, XR, 5.95, 11.117]);
 // Kitchen furring on the right wall
 B(19.039, XR, 0, CH, 15.71, 29.689, M.plaster, { poche: true, collide: true });
 
-// Vestibule: wall with door 101 + sidelights, side wall to the dining room
+// Vestibule: wood-framed glass screen to the stair hall (kitchen rendering 5): door 101 all glass, a glass sidelight
+// either side and a glass transom to the ceiling; solid piers at the ends, side wall to the dining room
 B(XL, 1.022, 0, CH, 36.367, 36.95, M.plaster, { poche: true, collide: true });
 B(6.478, 8.311, 0, CH, 36.367, 36.95, M.plaster, { poche: true, collide: true });
-B(1.022, 6.478, 8.0, CH, 36.367, 36.95, M.plaster, { poche: true });
 B(7.728, 8.311, 0, CH, 36.95, ZF, M.plaster, { poche: true, collide: true });
-// door 101 frame, sidelights, open leaf
-B(1.022, 1.222, 0, 8.0, 36.40, 36.92, M.trim);
-B(6.283, 6.478, 0, 8.0, 36.40, 36.92, M.trim);
-B(1.95, 2.05, 0, 8.0, 36.40, 36.92, M.trim);
-B(5.45, 5.55, 0, 8.0, 36.40, 36.92, M.trim);
-B(1.022, 6.478, 7.85, 8.0, 36.40, 36.92, M.trim);
-B(1.222, 1.95, 0, 0.7, 36.5, 36.82, M.trim);
-B(5.55, 6.283, 0, 0.7, 36.5, 36.82, M.trim);
-B(1.222, 1.95, 0.7, 7.85, 36.64, 36.68, M.glass, { parent: G.glass, shadow: false });
-B(5.55, 6.283, 0.7, 7.85, 36.64, 36.68, M.glass, { parent: G.glass, shadow: false });
-B(2.07, 2.24, 0, 7.8, 33.0, 36.36, M.door101, { collide: true });
-B(2.04, 2.27, 3.4, 7.0, 33.45, 35.9, M.glassDark);
-cyl(2.36, 33.35, 3.45, 3.55, 0.05, M.steel);
+{
+  const z0 = 36.43, z1 = 36.89, zg = 36.66, yh = 7.85, yt = CH - 0.22;
+  [[1.022, 1.222], [1.95, 2.05], [5.45, 5.55], [6.283, 6.478]].forEach(([a, b]) => B(a, b, 0, CH, z0, z1, M.veneer));   // jambs and mullions, floor to ceiling
+  B(1.022, 6.478, yh, yh + 0.2, z0, z1, M.veneer); B(1.022, 6.478, yt, CH, z0, z1, M.veneer);                           // door head / transom bar, top rail
+  [[1.222, 1.95], [5.55, 6.283]].forEach(([a, b]) => {
+    B(a, b, 0, 0.35, z0 + 0.04, z1 - 0.04, M.veneer);                                                                     // sidelight bottom rail
+    B(a, b, 0.35, yh, zg - 0.02, zg + 0.02, M.glass, { parent: G.glass, shadow: false });
+  });
+  [[1.222, 1.95], [2.05, 5.45], [5.55, 6.283]].forEach(([a, b]) => B(a, b, yh + 0.2, yt, zg - 0.02, zg + 0.02, M.glass, { parent: G.glass, shadow: false }));
+  // door 101: glass in a wood frame, shown open against the stair hall side
+  const x0 = 2.07, x1 = 2.24, za = 33.0, zb = 36.36;
+  B(x0, x1, 0, 7.8, za, za + 0.36, M.veneer); B(x0, x1, 0, 7.8, zb - 0.36, zb, M.veneer);
+  B(x0, x1, 0, 0.62, za + 0.36, zb - 0.36, M.veneer); B(x0, x1, 7.42, 7.8, za + 0.36, zb - 0.36, M.veneer);
+  B(x0 + 0.065, x1 - 0.065, 0.62, 7.42, za + 0.36, zb - 0.36, M.glass, { parent: G.glass, shadow: false });
+  B(x1, x1 + 0.12, 3.1, 4.3, za + 0.17, za + 0.21, M.steel); B(x0 - 0.12, x0, 3.1, 4.3, za + 0.17, za + 0.21, M.steel);  // pulls
+  colliders.push([x0, x1, za, zb], [1.022, 2.05, z0, z1], [5.45, 6.478, z0, z1]);   // leaf and the fixed glass
+}
 // coat hooks + bench on the east wall only (plan note leader, A-100 and DD plan)
 B(7.728 - 1.25, 7.728, 0, 1.5, 36.95, 40.2, M.veneer, { collide: true });      // 1'-3" bench
 for (let i = 0; i < 3; i++) cyl(7.728 - 0.12, 37.6 + i * 0.9, 5.3, 5.5, 0.05, M.steel);
